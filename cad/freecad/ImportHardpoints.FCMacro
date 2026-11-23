@@ -1,0 +1,124 @@
+# -*- coding: utf-8 -*-
+"""Import suspension hardpoints into FreeCAD.
+
+Reads the CSV exported by the suspension prototype ("Export for CAD") and creates, in the
+active document (or a new one):
+
+* a group "Hardpoints <file name>" with one Part::Vertex per hardpoint, labelled with its
+  name, for example "FL · Lower arm · inner forward";
+* a group "Links <file name>" with a Part::Line per arm, tie rod, steering axis, strut and
+  damper. The line ends are bound to the vertices with expressions, so editing a vertex's
+  X/Y/Z moves the lines with it.
+
+FreeCAD works in millimetres with Z up, like the CSV, so no conversion is needed.
+
+Use: Macro > Macros..., point "User macros location" to this folder (or copy this file into
+your macro folder), select ImportHardpoints.FCMacro and press Execute.
+"""
+import csv
+import os
+
+# Pairs of point ids joined by a line, per corner. Pairs whose points are not in the file
+# are skipped, so the same list covers double wishbone and MacPherson.
+LINKS = [
+    ('upperArmInnerForward', 'upperArmOuter'),
+    ('upperArmInnerRearward', 'upperArmOuter'),
+    ('lowerArmInnerForward', 'lowerArmOuter'),
+    ('lowerArmInnerRearward', 'lowerArmOuter'),
+    ('tieRodInner', 'tieRodOuter'),
+    ('lowerArmOuter', 'upperArmOuter'),   # steering axis, double wishbone
+    ('lowerArmOuter', 'strutTopMount'),   # steering axis, MacPherson
+    ('strutLower', 'strutTopMount'),      # strut (damper) axis, MacPherson
+    ('damperLower', 'damperUpper'),
+]
+
+REQUIRED_COLUMNS = ('name', 'id', 'corner', 'x_mm', 'y_mm', 'z_mm')
+
+
+def read_hardpoints(path):
+    """Read the hardpoints CSV. Returns dicts with name, id, corner and x, y, z in mm."""
+    with open(path, newline='', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        missing = [c for c in REQUIRED_COLUMNS if c not in (reader.fieldnames or [])]
+        if missing:
+            raise ValueError('Not a hardpoints CSV, missing column(s): ' + ', '.join(missing))
+        points = []
+        for row in reader:
+            if not row.get('id'):
+                continue
+            points.append({
+                'name': row['name'], 'id': row['id'], 'corner': row['corner'],
+                'x': float(row['x_mm']), 'y': float(row['y_mm']), 'z': float(row['z_mm']),
+            })
+    return points
+
+
+def link_pairs(points):
+    """Pairs of points (same corner) to join with lines, in file order of the corners."""
+    by_key = {(p['corner'], p['id']): p for p in points}
+    corners = []
+    for p in points:
+        if p['corner'] not in corners:
+            corners.append(p['corner'])
+    pairs = []
+    for corner in corners:
+        for a, b in LINKS:
+            if (corner, a) in by_key and (corner, b) in by_key:
+                pairs.append((by_key[(corner, a)], by_key[(corner, b)]))
+    return pairs
+
+
+def object_name(text):
+    """FreeCAD internal names may only contain letters, digits and underscores."""
+    return ''.join(c if c.isalnum() else '_' for c in text)
+
+
+def import_file(path):
+    import FreeCAD as App
+    doc = App.ActiveDocument or App.newDocument('Suspension')
+    points = read_hardpoints(path)
+    title = os.path.splitext(os.path.basename(path))[0]
+    point_group = doc.addObject('App::DocumentObjectGroup', 'Hardpoints')
+    point_group.Label = 'Hardpoints ' + title
+    link_group = doc.addObject('App::DocumentObjectGroup', 'Links')
+    link_group.Label = 'Links ' + title
+    vertices = {}
+    for p in points:
+        v = doc.addObject('Part::Vertex', object_name('HP_' + p['corner'] + '_' + p['id']))
+        v.X, v.Y, v.Z = p['x'], p['y'], p['z']
+        v.Label = p['name']
+        point_group.addObject(v)
+        vertices[(p['corner'], p['id'])] = v
+    pairs = link_pairs(points)
+    for a, b in pairs:
+        va, vb = vertices[(a['corner'], a['id'])], vertices[(b['corner'], b['id'])]
+        line = doc.addObject('Part::Line', object_name('Link_' + a['corner'] + '_' + a['id'] + '_' + b['id']))
+        for axis in 'XYZ':
+            line.setExpression(axis + '1', va.Name + '.' + axis)
+            line.setExpression(axis + '2', vb.Name + '.' + axis)
+        line.Label = a['corner'] + ' · ' + a['id'] + ' – ' + b['id']
+        link_group.addObject(line)
+    doc.recompute()
+    return len(points), len(pairs)
+
+
+def main():
+    import FreeCAD as App
+    from PySide import QtGui
+    path, _ = QtGui.QFileDialog.getOpenFileName(None, 'Choose the hardpoints CSV', '', 'CSV files (*.csv);;All files (*)')
+    if not path:
+        return
+    n_points, n_lines = import_file(path)
+    try:
+        import FreeCADGui as Gui
+        view = Gui.activeDocument().activeView()
+        view.viewIsometric()
+        view.fitAll()
+    except Exception:
+        pass
+    App.Console.PrintMessage('Imported {} hardpoints and {} link lines from {}\n'.format(n_points, n_lines, path))
+
+
+# The tests load this file with HARDPOINTS_NO_RUN set, to use the functions without FreeCAD.
+if not globals().get('HARDPOINTS_NO_RUN'):
+    main()

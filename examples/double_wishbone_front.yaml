@@ -1,0 +1,23 @@
+# Example double wishbone front suspension, LEFT side.
+# ISO 8855: X forward, Y left, Z up. Units: mm.
+# Placeholder numbers - replace with your own hardpoints from Fusion.
+name: Example double wishbone front
+type: double_wishbone
+
+hardpoints:
+  upper_front_inner: [ 120.0, 380.0, 520.0]
+  upper_rear_inner:  [-120.0, 380.0, 510.0]
+  upper_ball_joint:  [  -5.0, 640.0, 540.0]
+  lower_front_inner: [ 180.0, 300.0, 180.0]
+  lower_rear_inner:  [-180.0, 300.0, 175.0]
+  lower_ball_joint:  [   5.0, 700.0, 160.0]
+  tie_rod_inner:     [-130.0, 320.0, 230.0]
+  tie_rod_outer:     [-140.0, 670.0, 220.0]
+  wheel_center:      [   0.0, 720.0, 300.0]
+  spring_chassis:    [ -20.0, 480.0, 650.0]
+  spring_arm:        [ -10.0, 560.0, 190.0]
+
+wheel:
+  radius: 300.0
+  static_camber_deg: -1.5
+  static_toe_deg: 0.0

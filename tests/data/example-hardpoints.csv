@@ -1,0 +1,27 @@
+﻿name,id,corner,x_mm,y_mm,z_mm
+"FL · Upper arm · inner forward",upperArmInnerForward,FL,95,455,414
+"FL · Upper arm · inner rearward",upperArmInnerRearward,FL,-111,439,397
+"FL · Upper arm · outer (ball joint)",upperArmOuter,FL,-13,649,439
+"FL · Lower arm · inner forward",lowerArmInnerForward,FL,131,306,172
+"FL · Lower arm · inner rearward",lowerArmInnerRearward,FL,-137,296,186
+"FL · Lower arm · outer (ball joint)",lowerArmOuter,FL,4,707,156
+"FL · Tie rod · inner",tieRodInner,FL,-87,374,220
+"FL · Tie rod · outer",tieRodOuter,FL,-122,673,217
+"FL · Wheel · centre",wheelCentre,FL,0,760,300
+"FL · Damper · upper mount",damperUpper,FL,-30,560,650
+"FL · Damper · lower mount (on arm)",damperLower,FL,-30,600,175
+"FL · Derived · steering axis at ground",steeringAxisGround,FL,13.368,738.962,0.046
+"FL · Derived · contact patch centre",contactPatch,FL,0,765.236,0.046
+"FR · Upper arm · inner forward",upperArmInnerForward,FR,95,-455,414
+"FR · Upper arm · inner rearward",upperArmInnerRearward,FR,-111,-439,397
+"FR · Upper arm · outer (ball joint)",upperArmOuter,FR,-13,-649,439
+"FR · Lower arm · inner forward",lowerArmInnerForward,FR,131,-306,172
+"FR · Lower arm · inner rearward",lowerArmInnerRearward,FR,-137,-296,186
+"FR · Lower arm · outer (ball joint)",lowerArmOuter,FR,4,-707,156
+"FR · Tie rod · inner",tieRodInner,FR,-87,-374,220
+"FR · Tie rod · outer",tieRodOuter,FR,-122,-673,217
+"FR · Wheel · centre",wheelCentre,FR,0,-760,300
+"FR · Damper · upper mount",damperUpper,FR,-30,-560,650
+"FR · Damper · lower mount (on arm)",damperLower,FR,-30,-600,175
+"FR · Derived · steering axis at ground",steeringAxisGround,FR,13.368,-738.962,0.046
+"FR · Derived · contact patch centre",contactPatch,FR,0,-765.236,0.046

@@ -1,0 +1,10 @@
+{
+    "autodeskProduct": "Fusion360",
+    "type": "script",
+    "author": "hjuloppheng-kinematikk contributors",
+    "description": {
+        "": "Import suspension hardpoints from the suspension prototype's CSV as sketch points, link lines and named construction points (mm to cm, Z up)."
+    },
+    "supportedOS": "windows|mac",
+    "editEnabled": true
+}
