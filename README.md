@@ -18,7 +18,10 @@ a browser (double-click it). It needs an internet connection to load three.js.
 
 - Double wishbone or MacPherson, front or rear axle.
 - Isometric, front and side views. Click a point, drag the arrows, or type values.
-- Wheel-travel and rack sliders; Play animates bump and droop.
+- Wheel-travel, body-roll and rack sliders; Play animates bump and droop.
+- Charts in heave, roll (camber to ground, roll steer, roll-centre height and sideways
+  movement) and steering.
+- mm / inch switch for everything shown (the model and the CSV stay in mm).
 - Live graphs with a baseline to compare against; IC, roll centre and side-view IC
   constructions; read-outs at ride height.
 - Design targets ("lock & solve"): tick KPI, caster, trail, camber gain, roll centre,
