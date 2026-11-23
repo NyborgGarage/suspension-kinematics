@@ -411,7 +411,7 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
         <li>Blue curve = current design. Dashed grey = baseline. Set a baseline, change something, and compare. The baseline is kept when you switch between double wishbone and MacPherson.</li>
         <li>Heave, Roll, Steering (above the charts) choose what the charts sweep. Roll rolls the body at ride height (+ = left side up, as in a left-hand corner) and shows camber to the ground, roll steer and how the roll centre moves up, down and sideways. The Body roll slider shows the same in 3D.</li>
         <li>mm / inch switches every length shown. The model and the CSV export stay in millimetres.</li>
-        <li>Front view: instant centre (IC) and roll centre (RC). Side view: the side-view instant centre (SVIC) behind the anti-dive or anti-squat figure.</li>
+        <li>Front view: instant centre (IC) and roll centre (RC). Side view: dotted lines run through the inner pivots of each arm (textbook 2D method) to <b>SVIC 2D</b>; the ring marks the exact <b>SVIC</b> from the real 3D path of the contact patch, which the anti values use. They agree only when the ball joints lie on the pivot lines and the upright does not also turn in front view.</li>
         <li>Red dash-dot line = steering axis. On a MacPherson strut it runs from the top mount to the lower ball joint.</li>
         <li>ISO 8855 axes. Negative camber = top of the wheel leans in. Toe-in is positive.</li>
       </ul>
@@ -770,12 +770,41 @@ window.SuspensionEngine = (function () {
       res.antiLift = -vcp[0] / vcp[2] * (L / h) * (1 - bf) * 100;
       // Chassis-mounted diff: drive force acts at the wheel centre, so its path sets anti-squat.
       res.antiSquat = -vwc[0] / vwc[2] * (L / h) * 100;
+      // Textbook 2D side view, for comparison: lines along the arm pivot axes (through both inner
+      // pivots); for a strut, the line through the top mount perpendicular to the strut. Exact only
+      // when the ball joints lie on those lines in side view and the upright does not also turn in
+      // front view; the values above come from the real 3D path of the contact patch.
+      res.svic2d = sideViewPivotIC(mech.type, points, cp);
+      if (res.svic2d) {
+        const k = (p) => -(p[2] - res.svic2d[2]) / (p[0] - res.svic2d[0]);   // dx/dz of p rotating about the 2D IC
+        res.antiDive2d = k(cp) * (L / h) * bf * 100;
+        res.antiLift2d = -k(cp) * (L / h) * (1 - bf) * 100;
+        res.antiSquat2d = -k(W) * (L / h) * 100;
+      }
       const dp = mech.damper(pp), dm = mech.damper(pm);
       res.mr = -(dist(dp[0], dp[1]) - dist(dm[0], dm[1])) / (2 * dz); // damper compression per mm of wheel travel
     }
     return res;
   }
 
+  /** Side-view (x, z) crossing of the lower pivot-axis line with the upper pivot-axis line (or the strut perpendicular at the top mount). */
+  function sideViewPivotIC(type, P, cp) {
+    const a1 = [P.lowerArmInnerRearward[0], P.lowerArmInnerRearward[2]];
+    const d1 = [P.lowerArmInnerForward[0] - a1[0], P.lowerArmInnerForward[2] - a1[1]];
+    let a2, d2;
+    if (type === 'doubleWishbone') {
+      a2 = [P.upperArmInnerRearward[0], P.upperArmInnerRearward[2]];
+      d2 = [P.upperArmInnerForward[0] - a2[0], P.upperArmInnerForward[2] - a2[1]];
+    } else {
+      const s = sub(P.strutTopMount, P.strutLower);
+      a2 = [P.strutTopMount[0], P.strutTopMount[2]];
+      d2 = [s[2], -s[0]];
+    }
+    const den = d1[0] * d2[1] - d1[1] * d2[0];
+    if (Math.abs(den) < 1e-9 * Math.hypot(...d1) * Math.hypot(...d2)) return null;
+    const k = ((a2[0] - a1[0]) * d2[1] - (a2[1] - a1[1]) * d2[0]) / den;
+    return [a1[0] + k * d1[0], cp[1], a1[1] + k * d1[1]];
+  }
   function grid(lo, hi, step) {
     const up = [0], down = [];
     for (let i = 1; i * step < hi - 1e-9; i++) up.push(Math.round(i * step * 1e6) / 1e6);
@@ -896,7 +925,7 @@ window.SuspensionEngine = (function () {
     return Object.assign({}, s, {
       side: 'right', points: pts, spin: mirror(s.spin), cp: mirror(s.cp), wc: mirror(s.wc),
       axis: [mirror(s.axis[0]), mirror(s.axis[1])], axisGround: mirror(s.axisGround),
-      fvic: s.fvic && mirror(s.fvic), svic: s.svic && mirror(s.svic), damper: [mirror(s.damper[0]), mirror(s.damper[1])],
+      fvic: s.fvic && mirror(s.fvic), svic: s.svic && mirror(s.svic), svic2d: s.svic2d && mirror(s.svic2d), damper: [mirror(s.damper[0]), mirror(s.damper[1])],
     });
   }
   /** Both corners at any travel and rack position, starting from the nearest solved sweep sample. */
@@ -1399,6 +1428,12 @@ window.SuspensionEngine = (function () {
       near('Anti-dive = tan θ · L/h · front brake share = 0.1 · 5 · 0.6', s.antiDive, 30, 0.01, ' %');
       near('Side-view IC at x = −4500 mm', s.svic ? s.svic[0] : NaN, -4500, 0.5, ' mm');
       near('Side-view IC at z = 450 mm', s.svic ? s.svic[2] : NaN, 450, 0.5, ' mm');
+      // Ball joints on the pivot lines and no front-view rotation: the 2D pivot-line method agrees.
+      near('2D pivot-line method gives the same anti-dive here (30 %)', s.antiDive2d, 30, 0.01, ' %');
+      // Moving the lower ball joint 30 mm down leaves the pivot lines, and so the 2D IC, where they were.
+      const off = JSON.parse(JSON.stringify(anti)); off.points.doubleWishbone.lowerArmOuter = [0, 700, 120];
+      const so = at(off, 0);
+      near('2D pivot-line IC uses only the inner pivots: still x = −4500 with the ball joint moved', so.svic2d ? so.svic2d[0] : NaN, -4500, 1e-6, ' mm');
     });
     safe('Steering', () => {
       const s = at(par, 0, 1);
@@ -1555,6 +1590,9 @@ const METRICS = {
   antiDive:  { label: 'Anti-dive', unit: '%', d: 1, span: 10, axle: 'front' },
   antiSquat: { label: 'Anti-squat', unit: '%', d: 1, span: 10, axle: 'rear' },
   antiLift:  { label: 'Anti-lift', unit: '%', d: 1, span: 10, axle: 'rear' },
+  antiDive2d:  { label: 'Anti-dive, pivot lines (2D)', unit: '%', d: 1, span: 10, axle: 'front' },
+  antiSquat2d: { label: 'Anti-squat, pivot lines (2D)', unit: '%', d: 1, span: 10, axle: 'rear' },
+  antiLift2d:  { label: 'Anti-lift, pivot lines (2D)', unit: '%', d: 1, span: 10, axle: 'rear' },
   mr:        { label: 'Motion ratio', unit: '', d: 3, span: 0.05 },
   steerL:    { label: 'Steer angle, left wheel', unit: '°', d: 2, span: 5 },
   steerR:    { label: 'Steer angle, right wheel', unit: '°', d: 2, span: 5 },
@@ -1568,7 +1606,7 @@ const METRICS = {
   travelL:   { label: 'Wheel travel, left wheel', unit: 'mm', d: 1, span: 10 },
 };
 const ROLL_KEYS = ['camberGroundL', 'camberGroundR', 'rcRollH', 'rcRollY', 'toeL', 'toeR', 'travelL'];
-const TRAVEL_KEYS = ['camber', 'toe', 'caster', 'kpi', 'scrub', 'trail', 'spindle', 'rc', 'track', 'wcx', 'antiDive', 'antiSquat', 'antiLift', 'mr'];
+const TRAVEL_KEYS = ['camber', 'toe', 'caster', 'kpi', 'scrub', 'trail', 'spindle', 'rc', 'track', 'wcx', 'antiDive', 'antiSquat', 'antiLift', 'antiDive2d', 'antiSquat2d', 'antiLift2d', 'mr'];
 const STEER_KEYS = ['steerL', 'steerR', 'ackermann', 'camber', 'caster', 'kpi', 'scrub', 'trail'];
 const PART_COLOR = { upperArm: '--part-upper', lowerArm: '--part-lower', tieRod: '--part-tie', wheel: '--ink-2', damper: '--part-damper', strut: '--part-damper' };
 
@@ -2228,7 +2266,7 @@ function renderReadouts() {
     tb.append(tr);
   };
   if (!z) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 4; td.textContent = 'No solution at ride height.'; tr.append(td); tb.append(tr); tbl.append(tb); return; }
-  for (const key of ['camber', 'toe', 'caster', 'kpi', 'scrub', 'trail', 'spindle', 'rc', 'antiDive', 'antiSquat', 'antiLift', 'mr']) {
+  for (const key of ['camber', 'toe', 'caster', 'kpi', 'scrub', 'trail', 'spindle', 'rc', 'antiDive', 'antiDive2d', 'antiSquat', 'antiSquat2d', 'antiLift', 'antiLift2d', 'mr']) {
     if (!validFor(key)) continue;
     const meta = METRICS[key];
     add(meta.label, z[key], meta.d, meta.unit, gradientAt(sweepT, key), bz ? z[key] - bz[key] : NaN);
@@ -2504,7 +2542,7 @@ function renderStatus() {
   const l = cur && cur.left;
   const rr = cur && cur.roll;
   $('#frontTitle').textContent = !l ? '' : rr ? 'roll ' + signed(state.roll, 2) + '° · RC ' + fmtL(rr.rcRollH, 0) + ' high, ' + fmtLs(rr.rcRollY, 0) + ' sideways' : 'RC ' + fmtL(l.rc, 0) + (l.fvic && Math.abs(l.cp[1] - l.fvic[1]) < 1e5 ? ' · FVSA ' + fmtL(l.cp[1] - l.fvic[1], 0) : ' · IC at infinity');
-  $('#sideTitle').textContent = !l ? '' : state.model.axle === 'front' ? 'anti-dive ' + num(l.antiDive, 0) + ' %' : 'anti-squat ' + num(l.antiSquat, 0) + ' % · anti-lift ' + num(l.antiLift, 0) + ' %';
+  $('#sideTitle').textContent = !l ? '' : state.model.axle === 'front' ? 'anti-dive ' + num(l.antiDive, 0) + ' % (3D) · ' + num(l.antiDive2d, 0) + ' % pivot lines (2D)' : 'anti-squat ' + num(l.antiSquat, 0) + ' % · anti-lift ' + num(l.antiLift, 0) + ' % (3D) · ' + num(l.antiSquat2d, 0) + ' / ' + num(l.antiLift2d, 0) + ' % (2D)';
 }
 
 // ---------------------------------------------------------------- 3D scene
@@ -2526,6 +2564,7 @@ const mat = {
   grid: new THREE.LineBasicMaterial(),
   centre: new THREE.LineBasicMaterial(),
   construct: new THREE.LineDashedMaterial({ dashSize: 14, gapSize: 9 }),
+  construct2d: new THREE.LineDashedMaterial({ dashSize: 4, gapSize: 6, transparent: true, opacity: 0.75 }),
   marker: new THREE.LineBasicMaterial(),
 };
 const ghost = {};
@@ -2538,7 +2577,7 @@ function applyTheme() {
   set('upper', '--part-upper'); set('lower', '--part-lower'); set('tie', '--part-tie'); set('damper', '--part-damper'); set('upright', '--part-upright');
   set('ptChassis', '--ink'); set('ptJoint', '--ink'); set('ptSelected', '--select'); set('bad', '--bad'); set('ptBad', '--bad');
   set('tyre', '--ink-2'); set('cp', '--ink'); set('axis', '--axis'); set('grid', '--grid-3d'); set('centre', '--muted');
-  set('construct', '--construct'); set('marker', '--construct');
+  set('construct', '--construct'); set('construct2d', '--construct'); set('marker', '--construct');
   for (const v of allViews()) v.renderer.setClearColor(css('--sheet') || '#ffffff');
   requestRender();
 }
@@ -2684,8 +2723,8 @@ const left = new Corner(mat), right = new Corner(ghost), propCorner = new Corner
 modelGroup.add(left.group, right.group, propCorner.group);
 const axisLines = new DynLines(mat.axis, 300, 0);
 const frontL = new DynLines(mat.construct, 12, 1), frontR = new DynLines(ghost.construct, 12, 1), frontMarks = new DynLines(mat.marker, 80, 1);
-const sideL = new DynLines(mat.construct, 12, 2), sideMarks = new DynLines(mat.marker, 80, 2);
-modelGroup.add(axisLines.obj, frontL.obj, frontR.obj, frontMarks.obj, sideL.obj, sideMarks.obj);
+const sideL = new DynLines(mat.construct, 12, 2), side2d = new DynLines(mat.construct2d, 6, 2), sideMarks = new DynLines(mat.marker, 80, 2);
+modelGroup.add(axisLines.obj, frontL.obj, frontR.obj, frontMarks.obj, sideL.obj, side2d.obj, sideMarks.obj);
 (function buildGround() {
   const segs = [];
   for (let x = -1000; x <= 1000; x += 100) segs.push([[x, -1200, 0], [x, 1200, 0]]);
@@ -2713,11 +2752,20 @@ function frontSegs(s, type) {
   if (rcP) segs.push([s.cp, rcP]);
   return segs;
 }
+/** Anti line(s) to the exact side-view IC: from the contact patch (brakes), and the wheel centre (drive, rear). */
 function sideSegs(s, type, axle) {
   if (!s || !farOk(s.svic)) return [];
-  const P = s.points, v = s.svic;
-  const segs = [[P.lowerArmOuter, v], [type === 'doubleWishbone' ? P.upperArmOuter : P.strutTopMount, v]];
-  if (axle === 'front') segs.push([s.cp, v]); else segs.push([s.wc, v], [s.cp, v]);
+  const v = s.svic;
+  return axle === 'front' ? [[s.cp, v]] : [[s.wc, v], [s.cp, v]];
+}
+/** Textbook 2D construction: the pivot-axis lines through both inner pivots (strut: perpendicular at the top mount), out to where they cross. */
+function pivotSegs(s, type) {
+  if (!s || !farOk(s.svic2d)) return [];
+  const P = s.points, ic = s.svic2d;
+  const side = (p) => Math.hypot(p[0] - ic[0], p[2] - ic[2]);
+  const along = (a, b) => [side(a) > side(b) ? a : b, ic];
+  const segs = [along(P.lowerArmInnerForward, P.lowerArmInnerRearward)];
+  segs.push(type === 'doubleWishbone' ? along(P.upperArmInnerForward, P.upperArmInnerRearward) : [P.strutTopMount, ic]);
   return segs;
 }
 function updateScene() {
@@ -2747,9 +2795,10 @@ function updateScene() {
     if (r && farOk(r.fvic)) marks.push(...crossSegs(r.fvic, 12, 'yz'));
     frontMarks.set(marks);
     sideL.set(sideSegs(l, state.model.type, state.model.axle));
-    sideMarks.set(farOk(l.svic) ? [...ringSegs(l.svic, 13, 'xz'), ...crossSegs(l.svic, 20, 'xz')] : []);
+    side2d.set(pivotSegs(l, state.model.type));
+    sideMarks.set([...(farOk(l.svic) ? [...ringSegs(l.svic, 13, 'xz'), ...crossSegs(l.svic, 20, 'xz')] : []), ...(farOk(l.svic2d) ? crossSegs(l.svic2d, 14, 'xz') : [])]);
   } else {
-    for (const o of [axisLines, frontL, frontR, frontMarks, sideL, sideMarks]) o.set([]);
+    for (const o of [axisLines, frontL, frontR, frontMarks, sideL, side2d, sideMarks]) o.set([]);
   }
   renderStatus();
 }
@@ -2804,18 +2853,25 @@ function setCamera(v, center, dir, halfH) {
 }
 function fitHalf(v, width, height) { const a = v.w / Math.max(1, v.h); return Math.max(height / 2, width / 2 / a) * 1.06; }
 function halfTrack() { return cur && cur.left ? cur.left.cp[1] : 760; }
+/** Side-view frame: the wheel, plus both side-view instant centres when they are within 5 m. */
+function sideFrame() {
+  let x0 = -450, x1 = 450, z0 = -40, z1 = 720;
+  const l = cur && cur.left;
+  for (const ic of l ? [l.svic, l.svic2d] : []) if (ic && Math.abs(ic[0]) < 5000 && Math.abs(ic[2]) < 3000) { x0 = Math.min(x0, ic[0] - 300); x1 = Math.max(x1, ic[0] + 300); z0 = Math.min(z0, ic[2] - 80); z1 = Math.max(z1, ic[2] + 80); }
+  return { cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, w: x1 - x0, h: z1 - z0 };
+}
 function frameView(key) {
   const v = views[key]; if (!v) return;
   const ht = halfTrack();
   if (key === 'main') frameMain('iso');
   else if (key === 'front') setCamera(v, [0, 0, 330], [1, 0, 0], fitHalf(v, 2 * (ht + 260), 760));
-  else if (key === 'side') setCamera(v, [0, ht, 330], [0, 1, 0], fitHalf(v, 900, 760));
+  else if (key === 'side') { const f = sideFrame(); setCamera(v, [f.cx, ht, f.cz], [0, 1, 0], fitHalf(v, f.w, f.h)); }
 }
 function frameMain(kind) {
   const v = views.main; if (!v) return;
   const ht = halfTrack();
   if (kind === 'front') setCamera(v, [0, 0, 330], [1, 0, 0], fitHalf(v, 2 * (ht + 260), 760));
-  else if (kind === 'side') setCamera(v, [0, ht, 330], [0, 1, 0], fitHalf(v, 900, 760));
+  else if (kind === 'side') { const f = sideFrame(); setCamera(v, [f.cx, ht, f.cz], [0, 1, 0], fitHalf(v, f.w, f.h)); }
   else if (kind === 'top') setCamera(v, [0, 0, 0], [-0.0005, 0, 1], fitHalf(v, 2 * (ht + 260), 900));
   else setCamera(v, [-40, ht * 0.58, 320], [1, 0.95, 0.62], fitHalf(v, ht + 820, 900));
   for (const b of document.querySelectorAll('#viewSeg button')) b.setAttribute('aria-pressed', String(b.dataset.view === kind));
@@ -2939,6 +2995,7 @@ const dzv = (p) => (p ? toWorld(p) : null);
 makeTag(views.front, '', () => dzv(rcPointNow()), () => 'RC');
 makeTag(views.front, '', () => (cur && cur.left && farOk(cur.left.fvic) ? dzv(cur.left.fvic) : null), () => 'IC');
 makeTag(views.side, '', () => (cur && cur.left && farOk(cur.left.svic) ? dzv(cur.left.svic) : null), () => 'SVIC');
+makeTag(views.side, '', () => (cur && cur.left && farOk(cur.left.svic2d) ? dzv(cur.left.svic2d) : null), () => 'SVIC 2D');
 // Part labels sit at the inboard ends of the links so they spread out instead of crowding the upright.
 const PART_TAGS = [
   { text: 'Upper arm', color: '--part-upper', types: ['doubleWishbone'], at: (p) => V.lerp(V.lerp(p.upperArmInnerForward, p.upperArmInnerRearward, 0.5), p.upperArmOuter, 0.12) },

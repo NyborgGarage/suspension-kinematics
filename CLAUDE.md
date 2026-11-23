@@ -61,9 +61,12 @@ documentation, code, identifiers and comments are in English.
 - `prototype/suspension-prototype.html` is the Phase 1 clickable prototype: one HTML
   file, plain JavaScript + three.js 0.170 from jsDelivr (no build step). The engine part
   (a classic `<script>`, no DOM) is a generic 6-unknown Newton solver for the upright
-  pose, for double wishbone and MacPherson, with 46 hand-checked "engine checks" that
+  pose, for double wishbone and MacPherson, with 48 hand-checked "engine checks" that
   run on page load. Charts sweep heave, body roll (`rollAt`/`sweepRoll`: wheels at ∓h·tan φ,
   camber to ground, roll steer, roll centre from both contact-patch lines) and steering.
+  Anti values come from the 3D path of the contact patch / wheel centre (virtual work); the
+  textbook 2D pivot-axis-line SVIC (`svic2d`, `antiDive2d` …) is shown beside them for comparison.
+  They differ when ball joints sit off the pivot lines in side view (example DW: 36 % vs 51 %).
   A mm/inch switch converts display only (`disp`, `Lv`, `toMm` in the UI); the model stays in mm.
   Styling: original calm dark palette (IBM Plex) with the Nyborg Garage logo and black
   background; the user found the full brand palette too intense. A "Steering layout" panel switches the rack between behind and in
