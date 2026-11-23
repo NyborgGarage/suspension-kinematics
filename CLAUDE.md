@@ -88,6 +88,19 @@ documentation, code, identifiers and comments are in English.
 - Explain the physics briefly in doc comments. The user teaches this subject, so
   correct terminology matters.
 
+## Publishing
+- Repo: https://github.com/NyborgGarage/suspension-kinematics (public, branch `main`).
+- Site (GitHub Pages from `main`, root): https://nyborggarage.github.io/suspension-kinematics/
+  It serves `index.html`, which is generated from the prototype. After changing the
+  prototype, regenerate it and push:
+  ```
+  powershell -ExecutionPolicy Bypass -File tools\build-index.ps1
+  git add -A; git commit -m "..."; git push
+  ```
+- git and gh are installed (`C:\Program Files\Git\cmd`, `C:\Program Files\GitHub CLI`); gh is
+  logged in as NyborgGarage. Commits use the GitHub noreply address, never a personal email.
+- `3d view example 1.png` (Nick McCleery's image) is git-ignored and must not be published.
+
 ## Commands
 HTML prototype: open `prototype/suspension-prototype.html` in a browser (needs internet
 for three.js). The engine checks run on load; the "engine checks" chip in the top bar
