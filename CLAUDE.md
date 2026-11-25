@@ -75,6 +75,9 @@ documentation, code, identifiers and comments are in English.
   strut (2) + 3 links, no steering axis; trailing arm = inboard pivot fixed (3) + outboard pivot on the axis (2), no steering axis,
   `trailingArmLayout` (sweep, slope, arm length). With no steering axis, caster/KPI/scrub/trail are NaN and those targets are hidden.
   Old designs get missing types from the example (`normalizeModel`). The new types' examples are rear corners.
+  "Solve every type" (`startSolveAll`): the variant's ticked targets (`ticked`) solved with `createTargetSolver` for each type
+  allowed on the axle, from that type's own points and locks (`freeCoordsFor`); axis targets are n/a for types without a
+  steering axis. Results table `renderSolveAll`; `variantFromSolve` opens a result as a new variant. Moves > 100 mm are flagged.
   Variants A–D (`state.variants`, `switchVariant`, `addVariant`): whole models side by side, each with its
   own baseline and undo. The active one lives in `state.model`; `variantModel(v)` reads any of them. The
   dashed curves, Δ columns and a grey 3D ghost (`cmpCorner`) show the baseline or another variant

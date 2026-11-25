@@ -31,6 +31,8 @@ a browser (double-click it). It needs an internet connection to load three.js.
   such as `9..12`, lock the points (or single X/Y/Z coordinates) that must stay, and
   press Solve. The proposal is shown in amber in the views and the charts; Apply or
   Discard it.
+- Solve every type: the same ticked targets solved for every suspension type that fits the axle,
+  side by side (targets met, largest move, full travel). Each result opens as a new variant.
 - Steering layout: one button moves the rack (or toe link) between behind and in front
   of the axle, and shows arm angle, the arm angle for 100 % Ackermann, rack length and height.
 - Springs and anti-roll bar: spring rate, sprung corner mass, tyre rate and bar size give wheel

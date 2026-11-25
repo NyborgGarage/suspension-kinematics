@@ -77,7 +77,7 @@ table { font-size: inherit; line-height: inherit; }
 .cmp-wrap { overflow-x: auto; }
 table.cmp { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 12px; }
 table.cmp th, table.cmp td { padding: 3px 4px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule-soft); }
-table.cmp th:first-child, table.cmp td:first-child { text-align: left; white-space: normal; color: var(--ink-2); }
+table.cmp th:first-child, table.cmp td:first-child { text-align: left; white-space: normal; color: var(--ink-2); min-width: 9.5em; }
 table.cmp td { font-family: var(--font-data); }
 table.cmp td:first-child { font-family: var(--font-ui); }
 table.cmp th.act { color: var(--accent); }
@@ -437,6 +437,11 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
       </div>
       <p class="solve-status" id="solveStatus"></p>
       <ul class="moved" id="movedList"></ul>
+      <h2 style="margin-top:14px">Solve every type</h2>
+      <p class="note">Runs Solve for each suspension type that fits this axle, against the same ticked targets, starting from each type's own hardpoints and padlocks (the example geometry if you have not changed that type). Nothing in your design changes: each result can be opened as a new variant and compared under Compare variants.</p>
+      <div class="solve-bar"><button class="btn" id="solveAllBtn" type="button">Solve every type</button></div>
+      <p class="solve-status" id="solveAllStatus" role="status"></p>
+      <div class="cmp-wrap"><table class="cmp" id="solveAllTable"></table></div>
     </section>
     <section class="block" id="compareBlock">
       <h2>Compare variants</h2>
@@ -2401,7 +2406,7 @@ function scheduleRefresh() {
   requestAnimationFrame(run);
   setTimeout(run, 40); // fallback when frames are throttled
 }
-function refreshUI() { renderVariants(); renderGroundNote(); syncControls(); renderCharts(); renderReadouts(); renderSprings(); renderCompare(); renderTargets(); renderUpright(); renderSteerLayout(); renderPack(); renderStatus(); updateScene(); syncGizmo(); requestRender(); }
+function refreshUI() { renderVariants(); renderGroundNote(); syncControls(); renderCharts(); renderReadouts(); renderSprings(); renderCompare(); renderTargets(); renderSolveAll(); renderUpright(); renderSteerLayout(); renderPack(); renderStatus(); updateScene(); syncGizmo(); requestRender(); }
 
 // ---------------------------------------------------------------- steering layout (rack behind / in front)
 let flipNote = null;   // { text, key } shown until the steering points change again
@@ -3506,12 +3511,14 @@ function activeTargets() {
     return out;
   });
 }
-function freeCoords(targets) {
+function freeCoords(targets) { return freeCoordsFor(state.model, state.model.type, targets); }
+/** Coordinates Solve may move for one suspension type: everything not locked (damper mounts only for a motion-ratio target). */
+function freeCoordsFor(model, type, targets) {
   const usesMr = targets.some((t) => t.key === 'mr');
-  const out = [];
-  for (const def of E.POINTS[state.model.type]) {
+  const locks = model.locks[type] || {}, out = [];
+  for (const def of E.POINTS[type]) {
     if (def.part === 'damper' && !usesMr) continue;   // damper mounts only matter for motion ratio
-    const s = lockStr(def.id);
+    const v = locks[def.id], s = v === true ? 'xyz' : typeof v === 'string' ? v : '';
     ['x', 'y', 'z'].forEach((ax, a) => { if (!s.includes(ax)) out.push({ id: def.id, axis: a }); });
   }
   return out;
@@ -3576,6 +3583,7 @@ $('#targetTable').addEventListener('change', (e) => {
 let solveRun = null;
 function startSolve() {
   if (solveRun) { solveRun.cancel = true; return; }
+  if (allRun) return;   // Solve every type is running
   const targets = activeTargets();
   if (!targets.length) { setSolveStatus('Tick at least one target first.'); return; }
   const free = freeCoords(targets);
@@ -3629,6 +3637,135 @@ $('#applyBtn').addEventListener('click', () => {
   setSolveStatus('Applied. The previous design is now the baseline (dashed curves). Undo reverts.');
 });
 $('#discardBtn').addEventListener('click', () => { clearProposal(); refreshUI(); });
+
+// ---------------------------------------------------------------- solve every type against the same targets
+// The ticked targets of this variant, for every type that fits the axle. A type without a steering
+// axis cannot have steering-axis targets; those are reported as not applicable for it.
+let allRun = null;      // the run in progress
+const BIG_MOVE = 100;   // mm: a solved point moved further than this is flagged
+let allResult = null;   // { key, axle, targets, cols: [{ type, skipped, error, before, result, moved, largest }] }
+const ticked = () => {
+  const T = state.model.targets;
+  return E.TARGETS.filter((t) => (!t.axle || t.axle === state.model.axle) && T[t.key] && T[t.key].on && Number.isFinite(T[t.key].value)).map((t) => {
+    const tv = T[t.key], out = { key: t.key, value: tv.value, tol: t.tol };
+    if (Number.isFinite(tv.lo) && Number.isFinite(tv.hi)) { out.lo = tv.lo; out.hi = tv.hi; }
+    return out;
+  });
+};
+const targetsForType = (type, targets) => (E.TYPES[type].axis === 'none' ? targets.filter((t) => !AXIS_TARGETS.includes(t.key)) : targets);
+function startSolveAll() {
+  if (allRun) { allRun.cancel = true; return; }
+  if (solveRun) return;
+  const targets = ticked();
+  if (!targets.length) { $('#solveAllStatus').textContent = 'Tick at least one target first.'; return; }
+  stopPlay();
+  const types = Object.keys(E.TYPES).filter((t) => typeAllowed(t, state.model.axle));
+  allRun = { cancel: false, queue: types.slice(), cur: null };
+  allResult = { key: JSON.stringify(state.model), axle: state.model.axle, targets, cols: [] };
+  $('#solveAllBtn').textContent = 'Stop';
+  const next = () => {
+    if (!allRun) return;
+    if (allRun.cancel) { finishSolveAll(true); return; }
+    if (!allRun.cur) {
+      const type = allRun.queue.shift();
+      if (!type) { finishSolveAll(false); return; }
+      const m = clone(state.model); m.type = type;
+      const tg = targetsForType(type, targets), free = freeCoordsFor(m, type, tg);
+      const col = { type, model: m, targets: tg, skipped: targets.filter((t) => !tg.includes(t)).map((t) => t.key) };
+      allResult.cols.push(col);
+      const before = E.designMetrics(m, tg.map((t) => t.key));
+      col.before = before ? tg.filter((t) => E.targetMet(t, before)).length : NaN;
+      if (!tg.length) { col.error = 'no targets that apply'; }
+      else if (!free.length) { col.error = 'every point is locked'; }
+      else {
+        const solver = E.createTargetSolver(m, tg, free);
+        if (!solver.ok) col.error = 'cannot be solved at ride height';
+        else allRun.cur = { col, solver };
+      }
+      renderSolveAll(); setTimeout(next, 0); return;
+    }
+    const t0 = performance.now(), { col, solver } = allRun.cur;
+    let st;
+    do { st = solver.step(); } while (!st.done && performance.now() - t0 < 40);
+    $('#solveAllStatus').textContent = 'Solving ' + E.TYPES[col.type].label + ' (' + allResult.cols.length + ' of ' + (allResult.cols.length + allRun.queue.length) + ')… iteration ' + st.iter + ' · press Stop to keep what is done';
+    if (st.done) {
+      const r = solver.result();
+      col.result = r;
+      col.largest = r.moved.reduce((mx, mv) => Math.max(mx, V.len(mv.delta)), 0);
+      allRun.cur = null;
+      renderSolveAll();
+    }
+    setTimeout(next, 0);
+  };
+  renderSolveAll();
+  setTimeout(next, 0);
+}
+function finishSolveAll(stopped) {
+  if (allRun && allRun.cur) {   // keep the best so far of the type being solved
+    const { col, solver } = allRun.cur; col.result = solver.result(); col.largest = col.result.moved.reduce((mx, mv) => Math.max(mx, V.len(mv.delta)), 0); col.stopped = true;
+  }
+  allRun = null;
+  $('#solveAllBtn').textContent = 'Solve every type';
+  const done = allResult.cols.filter((c) => c.result);
+  const share = (c) => c.result.rows.filter((x) => x.met).length / Math.max(1, c.result.rows.length);
+  const best = done.slice().sort((a, b) => (share(b) - share(a)) || a.largest - b.largest)[0];
+  $('#solveAllStatus').textContent = (stopped ? 'Stopped. ' : '') + (best ? 'Most targets met with the smallest change: ' + E.TYPES[best.type].label + '. ' : '')
+    + 'Open a result as a variant to see its curves, 3D and room in the wheel.';
+  renderSolveAll();
+}
+function renderSolveAll() {
+  const tbl = $('#solveAllTable'); tbl.textContent = '';
+  const R = allResult;
+  if (!R || R.axle !== state.model.axle) return;
+  const thead = document.createElement('thead'), hr = document.createElement('tr');
+  hr.append(document.createElement('th'));
+  for (const c of R.cols) { const th = document.createElement('th'); th.textContent = E.TYPES[c.type].short; th.title = E.TYPES[c.type].label; if (c.type === state.model.type) th.className = 'act'; hr.append(th); }
+  thead.append(hr);
+  const tb = document.createElement('tbody');
+  const row = (label, cells, title) => {
+    const tr = document.createElement('tr'); const a = document.createElement('td'); a.textContent = label; if (title) a.title = title; tr.append(a);
+    for (const c of cells) { const td = document.createElement('td'); if (c instanceof Node) td.append(c); else if (typeof c === 'string') td.textContent = c; else { td.textContent = c.text; if (c.cls) td.className = c.cls; if (c.title) td.title = c.title; } tr.append(td); }
+    tb.append(tr);
+  };
+  const metText = (c) => (c.error ? { text: c.error, cls: 'miss' } : !c.result ? '…' : c.result.rows.filter((x) => x.met).length + ' of ' + c.result.rows.length + (c.stopped ? ' (stopped)' : ''));
+  row('Targets met', R.cols.map(metText));
+  row('Before Solve', R.cols.map((c) => (Number.isFinite(c.before) ? c.before + ' of ' + c.targets.length : '–')), 'Targets the type already met with its starting hardpoints');
+  for (const t of R.targets) {
+    const def = E.TARGETS.find((d) => d.key === t.key), g = tgDisp(def);
+    row(def.label + (g.unit ? ' (' + g.unit + ')' : ''), R.cols.map((c) => {
+      if (c.skipped.includes(t.key)) return { text: 'n/a', title: 'No steering axis on this type' };
+      const r = c.result && c.result.rows.find((x) => x.key === t.key);
+      if (!r || !Number.isFinite(r.value)) return c.result ? '–' : '';
+      return { text: (r.met ? '✓ ' : '✕ ') + num(r.value * g.f, g.d), cls: r.met ? 'met' : 'miss', title: 'Target ' + targetText(t, def) };
+    }), 'Target ' + targetText(t, def));
+  }
+  row('Points moved', R.cols.map((c) => (c.result ? String(c.result.moved.length) : '')));
+  row('Largest move', R.cols.map((c) => (!c.result ? '' : c.largest > BIG_MOVE ? { text: fmtL(c.largest, 0), cls: 'miss', title: 'A big move: check that the points are still where parts can go, or lock more of them' } : fmtL(c.largest, 1))));
+  row('Full travel' + (R.axle === 'front' ? ' and lock' : ''), R.cols.map((c) => (c.result ? (c.result.reachesTravel ? { text: '✓', cls: 'met' } : { text: '✕', cls: 'miss', title: 'A link cannot reach at full travel or lock' }) : '')));
+  const full = state.variants.length >= MAX_VARIANTS;
+  row('Open as a new variant', R.cols.map((c) => {
+    if (!c.result) return '';
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'; b.textContent = c.variant ? c.variant + ' ✓' : 'Open';
+    b.disabled = !!c.variant || full || !!allRun; b.title = full ? 'At most ' + MAX_VARIANTS + ' variants: remove one first' : 'Open this result as a new variant';
+    b.addEventListener('click', () => variantFromSolve(c));
+    return b;
+  }));
+  tbl.append(thead, tb);
+  if (R.key !== JSON.stringify(state.model) && !allRun) $('#solveAllStatus').textContent = 'The design has changed since these results. Press Solve every type again for fresh ones.';
+}
+/** A new variant: this design with the solved hardpoints of one type, that type selected. */
+function variantFromSolve(c) {
+  if (state.variants.length >= MAX_VARIANTS || c.variant) return;
+  stashActive();
+  const name = 'ABCDEFGH'.split('').find((ch) => !variantByName(ch));
+  const m = clone(state.model);
+  m.type = c.type; m.points[c.type] = clone(c.result.model.points[c.type]);
+  state.variants.push(newVariant(name, normalizeModel(m)));
+  c.variant = name;
+  save(); refreshUI();
+  toast('Variant ' + name + ': ' + E.TYPES[c.type].label + ' as solved. Click ' + name + ' at the top to work on it, or compare it under Compare variants.');
+}
+$('#solveAllBtn').addEventListener('click', startSolveAll);
 
 function setChip(el, cls, icon, text) { el.className = 'chip ' + cls; el.querySelector('.ico').textContent = icon; el.querySelector('.txt').textContent = text; }
 function renderStatus() {
