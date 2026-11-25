@@ -310,7 +310,8 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
   <aside class="card inputs" aria-label="Inputs">
     <section class="block">
       <h2>Hardpoints · <span id="cornerName">FL</span> corner</h2>
-      <p class="note"><span id="unitWord">Millimetres</span>. X forward from this axle's centre line, Y left from the car's centre line, Z up from the ground. The right side is a mirror image.</p>
+      <p class="note"><span id="unitWord">Millimetres</span>. X forward from this axle's centre line, Y left from the car's centre line, Z up from the ground at ride height. The right side is a mirror image. Changing the loaded tyre radius lifts or lowers all points with the car.</p>
+      <p class="note" id="groundNote" style="color:var(--warn)" hidden></p>
       <div class="legend-marks"><span><i class="mark-chassis"></i>on the chassis</span><span><i class="mark-joint"></i>moves with the wheel</span></div>
       <p class="note">Padlocks are for Solve: the big one locks the whole point, the small ones lock X, Y or Z alone (for example a chassis rail that fixes Y). You can still drag locked points yourself.</p>
       <table class="pts">
@@ -1838,7 +1839,7 @@ function scheduleRefresh() {
   requestAnimationFrame(run);
   setTimeout(run, 40); // fallback when frames are throttled
 }
-function refreshUI() { syncControls(); renderCharts(); renderReadouts(); renderTargets(); renderUpright(); renderSteerLayout(); renderPack(); renderStatus(); updateScene(); syncGizmo(); requestRender(); }
+function refreshUI() { renderGroundNote(); syncControls(); renderCharts(); renderReadouts(); renderTargets(); renderUpright(); renderSteerLayout(); renderPack(); renderStatus(); updateScene(); syncGizmo(); requestRender(); }
 
 // ---------------------------------------------------------------- steering layout (rack behind / in front)
 let flipNote = null;   // { text, key } shown until the steering points change again
@@ -2051,10 +2052,38 @@ function buildParams() {
       inp.addEventListener('change', () => {
         const v = parseFloat(inp.value);
         if (!Number.isFinite(v)) { syncParams(); return; }
-        commit(() => setPath(state.model, path, clamp(len ? toMm(v) : v, lo, hi)));
+        const nv = clamp(len ? toMm(v) : v, lo, hi);
+        if (path === 'wheel.radius') { changeTyreRadius(nv); return; }
+        commit(() => setPath(state.model, path, nv));
       });
     }
   }
+}
+/**
+ * Hardpoint Z is height above the ground at ride height. A taller tyre lifts the whole car by
+ * the change in radius, so every hardpoint (both suspension types) and the CG move up by the
+ * same amount; the geometry relative to the body stays the same. The old design becomes the
+ * baseline so the charts show the effect (roll centre and CG height, anti values).
+ */
+function changeTyreRadius(r) {
+  const dz = r - state.model.wheel.radius;
+  if (Math.abs(dz) < 1e-9) return;
+  state.baseline = snapshot();
+  commit(() => {
+    const m = state.model;
+    m.wheel.radius = r;
+    for (const t of Object.keys(m.points)) for (const id of Object.keys(m.points[t])) m.points[t][id][2] += dz;
+    m.vehicle.cgHeight += dz;
+  });
+  toast('Tyre radius ' + fmtL(r, 1) + ': the car now sits ' + fmtL(Math.abs(dz), 1) + (dz > 0 ? ' higher' : ' lower') + '. All hardpoints and the CG height moved with it. The previous design is the baseline.');
+}
+/** Warn when the tyre does not reach the ground (Z of the hardpoints is height above the ground). */
+function renderGroundNote() {
+  const m = state.model, W = m.points[m.type].wheelCentre;
+  const gap = W[2] - m.wheel.radius * Math.cos(m.wheel.camber * Math.PI / 180);
+  const el = $('#groundNote');
+  el.hidden = Math.abs(gap) < 0.5;
+  el.textContent = 'The tyre ' + (gap > 0 ? 'floats ' + fmtL(gap, 1) + ' above' : 'sinks ' + fmtL(-gap, 1) + ' into') + ' the ground at ride height: wheel centre Z should be about the loaded tyre radius (' + fmtL(m.wheel.radius, 1) + '). Values that use the ground (roll centre, scrub, trail, anti) are then off.';
 }
 function syncParams() {
   for (const inp of document.querySelectorAll('.params input')) {
