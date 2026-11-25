@@ -19,7 +19,7 @@ import csv
 import os
 
 # Pairs of point ids joined by a line, per corner. Pairs whose points are not in the file
-# are skipped, so the same list covers double wishbone and MacPherson.
+# are skipped, so the same list covers every suspension type.
 LINKS = [
     ('upperArmInnerForward', 'upperArmOuter'),
     ('upperArmInnerRearward', 'upperArmOuter'),
@@ -30,6 +30,19 @@ LINKS = [
     ('lowerArmOuter', 'strutTopMount'),   # steering axis, MacPherson
     ('strutLower', 'strutTopMount'),      # strut (damper) axis, MacPherson
     ('damperLower', 'damperUpper'),
+    # multilink: five links
+    ('upperForwardLinkInner', 'upperForwardLinkOuter'),
+    ('upperRearwardLinkInner', 'upperRearwardLinkOuter'),
+    ('lowerForwardLinkInner', 'lowerForwardLinkOuter'),
+    ('lowerRearwardLinkInner', 'lowerRearwardLinkOuter'),
+    # strut with lateral links: the two lateral links and the trailing rod
+    ('forwardLinkInner', 'forwardLinkOuter'),
+    ('rearwardLinkInner', 'rearwardLinkOuter'),
+    ('trailingRodForward', 'trailingRodRearward'),
+    # trailing arm: pivot axis, and the arm from each pivot to the wheel centre
+    ('trailingArmPivotInboard', 'trailingArmPivotOutboard'),
+    ('trailingArmPivotInboard', 'wheelCentre'),
+    ('trailingArmPivotOutboard', 'wheelCentre'),
 ]
 
 REQUIRED_COLUMNS = ('name', 'id', 'corner', 'x_mm', 'y_mm', 'z_mm')

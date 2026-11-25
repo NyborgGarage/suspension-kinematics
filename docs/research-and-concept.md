@@ -506,9 +506,16 @@ Every point has a readable name built from three parts: **corner · part · poin
 | Upper arm | inner forward, inner rearward, outer (ball joint) |
 | Lower arm | inner forward, inner rearward, outer (ball joint) |
 | Tie rod (front) / Toe link (rear) | inner, outer |
-| Strut (MacPherson) | top mount (pivot), axis point on upright |
-| Damper | upper mount, lower mount (on arm) |
+| Strut (MacPherson, strut + links) | top mount (pivot), axis point on upright |
+| Damper | upper mount, lower mount (on arm / on upright / on the arm) |
 | Wheel | centre |
+| Upper forward link, Upper rearward link, Lower forward link, Lower rearward link (multilink) | inner, outer |
+| Forward lateral link, Rearward lateral link (strut + links) | inner, outer |
+| Trailing rod (strut + links) | forward (on the body), rearward (on the upright) |
+| Trailing arm | pivot, inboard; pivot, outboard |
+
+Code ids follow the same pattern, e.g. `upperForwardLinkOuter`, `forwardLinkInner`,
+`trailingRodRearward`, `trailingArmPivotInboard`.
 
 Examples: `FL · Lower arm · inner forward`, `RR · Upper arm · outer (ball joint)`,
 `RL · Toe link · inner`.
@@ -826,7 +833,7 @@ Each phase ends with something you can use and test yourself.
 | 5 | **Design cascade** (§6) and **MacPherson vs. double wishbone comparison** against the same targets | One target set (for example the MR2 example) solved for both types, compared side by side. **Started in the prototype (2026-11-25):** variants A–D are compared in one table, each checked against the active variant's targets, with dashed curves and a grey 3D ghost for the variant compared with. Solving one target set for both types in one go is still to do. |
 | 6 | **Fusion bridge** (import/export add-in) | A round trip Fusion → app → Fusion gives identical points |
 | 7 | **Measuring helpers** (§8.5): datum choice, triangulation, alignment cross-check | – |
-| 8 | Axle level (roll, both sides, ARB), then multilink | **Started in the prototype (2026-11-25):** body roll sweep, and per-axle springs and bar: wheel rate k·MR², ride rate with the tyre in series, ride frequency, spring for a wanted frequency, bar torsion G·πD⁴/32/L (arms taken as stiff), roll stiffness Kw·t²/2 + Kθ·MRbar²·t²/arm². Whole car from a front and a rear variant: roll axis under the CG, roll gradient m·g·d/(K_f + K_r) in °/g, front share of roll stiffness and of lateral load transfer (elastic + geometric, sprung mass only). |
+| 8 | Axle level (roll, both sides, ARB), then multilink | **Started in the prototype (2026-11-25):** body roll sweep, and per-axle springs and bar: wheel rate k·MR², ride rate with the tyre in series, ride frequency, spring for a wanted frequency, bar torsion G·πD⁴/32/L (arms taken as stiff), roll stiffness Kw·t²/2 + Kθ·MRbar²·t²/arm². **Rear layouts (2026-11-25):** multilink (five two-ball links, virtual steering axis through the crossings of the lower and upper link lines), strut with two lateral links and a trailing rod (toe set by the lateral links, no steering axis), and trailing arm (one arm turning about its pivot axis; square to the car = trailing arm, swept = semi-trailing; sweep, slope and arm length shown). All solve with the same 6-unknown Newton solver. Whole car from a front and a rear variant: roll axis under the CG, roll gradient m·g·d/(K_f + K_r) in °/g, front share of roll stiffness and of lateral load transfer (elastic + geometric, sprung mass only). |
 | 9 | **Community library** | – |
 
 ### Lock & solve in the prototype

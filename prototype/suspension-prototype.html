@@ -305,6 +305,9 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
     <div class="seg" role="group" aria-label="Suspension type" id="typeSeg">
       <button type="button" data-type="doubleWishbone">Double wishbone</button>
       <button type="button" data-type="macpherson">MacPherson</button>
+      <button type="button" data-type="multilink" title="Five separate links (rear axle); the steering axis is virtual (where the link lines cross)">Multilink</button>
+      <button type="button" data-type="strutLinks" title="Strut with two lateral links and a trailing rod (rear axle)">Strut + links</button>
+      <button type="button" data-type="trailingArm" title="Trailing or semi-trailing arm (rear axle): one arm turning about a fixed pivot axis">Trailing arm</button>
     </div>
     <div class="seg" role="group" aria-label="Axle" id="axleSeg">
       <button type="button" data-axle="front">Front axle</button>
@@ -467,7 +470,8 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
         <li>mm / inch switches every length shown. The model and the CSV export stay in millimetres.</li>
         <li>Save design, Open design and Copy share link are at the bottom of the inputs. A share link carries the whole design, so whoever opens it sees exactly what you see.</li>
         <li>Front view: instant centre (IC) and roll centre (RC). Side view: dotted lines run through the inner pivots of each arm (textbook 2D method) to <b>SVIC 2D</b>; the ring marks the exact <b>SVIC</b> from the real 3D path of the contact patch, which the anti values use. They agree only when the ball joints lie on the pivot lines and the upright does not also turn in front view.</li>
-        <li>Red dash-dot line = steering axis. On a MacPherson strut it runs from the top mount to the lower ball joint.</li>
+        <li>Red dash-dot line = steering axis. On a MacPherson strut it runs from the top mount to the lower ball joint. On a multilink it is virtual: it runs through the crossing points of the two lower link lines and of the two upper link lines.</li>
+        <li>Suspension types: double wishbone and MacPherson on either axle; multilink (five links), strut with two lateral links and a trailing rod, and trailing arm on the rear axle. A trailing arm with its pivot axis square to the car is a pure trailing arm; sweep the axis in plan view (move one pivot forward) and it becomes a semi-trailing arm. These two have no steering axis, so caster, KPI, scrub and trail are not shown.</li>
         <li>ISO 8855 axes. Negative camber = top of the wheel leans in. Toe-in is positive.</li>
       </ul>
     </section>
@@ -642,8 +646,75 @@ window.SuspensionEngine = (function () {
       { id: 'tieRodOuter', part: 'tieRod', name: 'outer', body: 'upright' },
       { id: 'wheelCentre', part: 'wheel', name: 'centre', body: 'upright' },
     ],
+    // Five separate links, each with a ball joint at both ends (inner on the body, outer on the upright).
+    multilink: [
+      { id: 'upperForwardLinkInner', part: 'upperForwardLink', name: 'inner', body: 'chassis' },
+      { id: 'upperForwardLinkOuter', part: 'upperForwardLink', name: 'outer', body: 'upright' },
+      { id: 'upperRearwardLinkInner', part: 'upperRearwardLink', name: 'inner', body: 'chassis' },
+      { id: 'upperRearwardLinkOuter', part: 'upperRearwardLink', name: 'outer', body: 'upright' },
+      { id: 'lowerForwardLinkInner', part: 'lowerForwardLink', name: 'inner', body: 'chassis' },
+      { id: 'lowerForwardLinkOuter', part: 'lowerForwardLink', name: 'outer', body: 'upright' },
+      { id: 'lowerRearwardLinkInner', part: 'lowerRearwardLink', name: 'inner', body: 'chassis' },
+      { id: 'lowerRearwardLinkOuter', part: 'lowerRearwardLink', name: 'outer', body: 'upright' },
+      { id: 'tieRodInner', part: 'tieRod', name: 'inner', body: 'rack' },
+      { id: 'tieRodOuter', part: 'tieRod', name: 'outer', body: 'upright' },
+      { id: 'wheelCentre', part: 'wheel', name: 'centre', body: 'upright' },
+      { id: 'damperUpper', part: 'damper', name: 'upper mount', body: 'chassis' },
+      { id: 'damperLower', part: 'damper', name: 'lower mount (on upright)', body: 'upright' },
+    ],
+    // Strut with two lateral links and a trailing rod (Chapman type): the lateral links also set the toe.
+    strutLinks: [
+      { id: 'strutTopMount', part: 'strut', name: 'top mount (pivot)', body: 'chassis' },
+      { id: 'strutLower', part: 'strut', name: 'axis point on upright', body: 'upright' },
+      { id: 'forwardLinkInner', part: 'forwardLink', name: 'inner', body: 'chassis' },
+      { id: 'forwardLinkOuter', part: 'forwardLink', name: 'outer', body: 'upright' },
+      { id: 'rearwardLinkInner', part: 'rearwardLink', name: 'inner', body: 'chassis' },
+      { id: 'rearwardLinkOuter', part: 'rearwardLink', name: 'outer', body: 'upright' },
+      { id: 'trailingRodForward', part: 'trailingRod', name: 'forward (on the body)', body: 'chassis' },
+      { id: 'trailingRodRearward', part: 'trailingRod', name: 'rearward (on the upright)', body: 'upright' },
+      { id: 'wheelCentre', part: 'wheel', name: 'centre', body: 'upright' },
+    ],
+    // One rigid arm that turns about a fixed axis through its two pivots. Axis square to the car =
+    // pure trailing arm; swept in plan view = semi-trailing arm.
+    trailingArm: [
+      { id: 'trailingArmPivotInboard', part: 'trailingArm', name: 'pivot, inboard', body: 'chassis' },
+      { id: 'trailingArmPivotOutboard', part: 'trailingArm', name: 'pivot, outboard', body: 'chassis' },
+      { id: 'wheelCentre', part: 'wheel', name: 'centre', body: 'upright' },
+      { id: 'damperUpper', part: 'damper', name: 'upper mount', body: 'chassis' },
+      { id: 'damperLower', part: 'damper', name: 'lower mount (on the arm)', body: 'upright' },
+    ],
   };
-  const PART_NAMES = { upperArm: 'Upper arm', lowerArm: 'Lower arm', tieRod: 'Tie rod', wheel: 'Wheel', damper: 'Damper', strut: 'Strut' };
+  const PART_NAMES = { upperArm: 'Upper arm', lowerArm: 'Lower arm', tieRod: 'Tie rod', wheel: 'Wheel', damper: 'Damper', strut: 'Strut',
+    upperForwardLink: 'Upper forward link', upperRearwardLink: 'Upper rearward link', lowerForwardLink: 'Lower forward link', lowerRearwardLink: 'Lower rearward link',
+    forwardLink: 'Forward lateral link', rearwardLink: 'Rearward lateral link', trailingRod: 'Trailing rod', trailingArm: 'Trailing arm' };
+  /**
+   * Suspension types. axles: where the type can be used. axis: the steering axis is 'real' (ball
+   * joints or strut top mount), 'virtual' (where the link lines cross) or 'none'. links: [inner
+   * (body) point, outer (upright) point, part] for every two-ball link, used for the solver,
+   * drawing, packaging and CAD lines.
+   */
+  const TYPES = {
+    doubleWishbone: { label: 'Double wishbone', short: 'DW', slug: 'double-wishbone', axles: ['front', 'rear'], axis: 'real',
+      links: [['upperArmInnerForward', 'upperArmOuter', 'upperArm'], ['upperArmInnerRearward', 'upperArmOuter', 'upperArm'],
+        ['lowerArmInnerForward', 'lowerArmOuter', 'lowerArm'], ['lowerArmInnerRearward', 'lowerArmOuter', 'lowerArm'], ['tieRodInner', 'tieRodOuter', 'tieRod']] },
+    macpherson: { label: 'MacPherson', short: 'MacPh.', slug: 'macpherson', axles: ['front', 'rear'], axis: 'real', strut: true,
+      links: [['lowerArmInnerForward', 'lowerArmOuter', 'lowerArm'], ['lowerArmInnerRearward', 'lowerArmOuter', 'lowerArm'], ['tieRodInner', 'tieRodOuter', 'tieRod']] },
+    multilink: { label: 'Multilink', short: '5-link', slug: 'multilink', axles: ['rear'], axis: 'virtual',   // the engine also steers it (toe link on the rack); a front example is still to come
+      links: [['upperForwardLinkInner', 'upperForwardLinkOuter', 'upperForwardLink'], ['upperRearwardLinkInner', 'upperRearwardLinkOuter', 'upperRearwardLink'],
+        ['lowerForwardLinkInner', 'lowerForwardLinkOuter', 'lowerForwardLink'], ['lowerRearwardLinkInner', 'lowerRearwardLinkOuter', 'lowerRearwardLink'], ['tieRodInner', 'tieRodOuter', 'tieRod']] },
+    strutLinks: { label: 'Strut + links', short: 'Strut+L', slug: 'strut-lateral-links', axles: ['rear'], axis: 'none', strut: true,
+      links: [['forwardLinkInner', 'forwardLinkOuter', 'forwardLink'], ['rearwardLinkInner', 'rearwardLinkOuter', 'rearwardLink'], ['trailingRodForward', 'trailingRodRearward', 'trailingRod']] },
+    trailingArm: { label: 'Trailing arm', short: 'Trailing', slug: 'trailing-arm', axles: ['rear'], axis: 'none', links: [] },
+  };
+  /** Closest-approach midpoint of the lines a1–b1 and a2–b2 (a "virtual ball joint"), or null when they are near parallel. */
+  function virtualJoint(a1, b1, a2, b2) {
+    const d1 = sub(b1, a1), d2 = sub(b2, a2), w = sub(a1, a2);
+    const a = dot(d1, d1), b = dot(d1, d2), c = dot(d2, d2), d = dot(d1, w), e = dot(d2, w);
+    const den = a * c - b * b;
+    if (den < 1e-3 * a * c) return null;            // lines within about 1.8° of parallel
+    const s = (b * e - c * d) / den, t = (a * e - b * d) / den;
+    return lerp(add(a1, mul(d1, s)), add(a2, mul(d2, t)), 0.5);
+  }
   /** Display name, e.g. "FL · Lower arm · inner forward". On the rear axle the tie rod is a toe link. */
   function pointName(axle, side, def) {
     const corner = (axle === 'rear' ? 'R' : 'F') + (side === 'right' ? 'R' : 'L');
@@ -672,6 +743,25 @@ window.SuspensionEngine = (function () {
           strutTopMount: [-15, 565, 661], strutLower: [35, 649, 324],
           lowerArmInnerForward: [121, 321, 174], lowerArmInnerRearward: [-157, 287, 180], lowerArmOuter: [4, 701, 157],
           tieRodInner: [-108, 287, 223], tieRodOuter: [-124, 669, 216], wheelCentre: [0, 760, 300],
+        },
+        // Rear-axle examples (X from the rear axle line).
+        multilink: {
+          upperForwardLinkInner: [90, 430, 420], upperForwardLinkOuter: [30, 640, 430],
+          upperRearwardLinkInner: [-160, 440, 415], upperRearwardLinkOuter: [-40, 645, 430],
+          lowerForwardLinkInner: [230, 360, 170], lowerForwardLinkOuter: [50, 670, 168],
+          lowerRearwardLinkInner: [-130, 330, 180], lowerRearwardLinkOuter: [-40, 680, 160],
+          tieRodInner: [-200, 340, 220.8], tieRodOuter: [-130, 640, 210], wheelCentre: [0, 760, 300],
+          damperUpper: [-100, 600, 620], damperLower: [-100, 650, 190],
+        },
+        strutLinks: {
+          strutTopMount: [-15, 570, 680], strutLower: [0, 660, 330],
+          forwardLinkInner: [70, 330, 195], forwardLinkOuter: [70, 680, 175],
+          rearwardLinkInner: [-70, 330, 195], rearwardLinkOuter: [-70, 680, 175],
+          trailingRodForward: [420, 600, 210], trailingRodRearward: [30, 650, 175], wheelCentre: [0, 760, 300],
+        },
+        trailingArm: {
+          trailingArmPivotInboard: [240, 335, 320], trailingArmPivotOutboard: [333, 620, 320], wheelCentre: [0, 760, 300],
+          damperUpper: [-40, 600, 620], damperLower: [-40, 640, 220],
         },
       },
       wheel: { radius: 300, width: 205, rimDiameter: 15, rimWidth: 7, offset: 35, rimWall: 20, camber: -1.0, toe: 0.0 },
@@ -718,7 +808,10 @@ window.SuspensionEngine = (function () {
    *    tie rod length (1), wheel-centre height = travel (1);
    *  - MacPherson: lower ball joint keeps its distance to both inner pivots (2), the
    *    top-mount pivot stays on the strut axis, which is fixed to the upright (2),
-   *    tie rod length (1), wheel-centre height (1).
+   *    tie rod length (1), wheel-centre height (1);
+   *  - multilink: five link lengths (5), wheel-centre height (1);
+   *  - strut with lateral links: strut (2), two lateral links and the trailing rod (3), height (1);
+   *  - trailing arm: inboard pivot fixed (3), outboard pivot on the pivot axis (2), height (1).
    */
   function buildMechanism(model) {
     const type = model.type;
@@ -728,11 +821,47 @@ window.SuspensionEngine = (function () {
     const rackOn = model.axle === 'front';
     const tieInner = (rack) => [P.tieRodInner[0], P.tieRodInner[1] + (rackOn ? rack : 0), P.tieRodInner[2]];
     const at = (pose, p) => applyPose(pose, c0, p);
-    const lTie = dist(P.tieRodOuter, P.tieRodInner);
-    const lLf = dist(P.lowerArmOuter, P.lowerArmInnerForward);
-    const lLr = dist(P.lowerArmOuter, P.lowerArmInnerRearward);
     let residuals, steeringAxis, damper;
-    if (type === 'doubleWishbone') {
+    // Two-ball links: the outer joint (on the upright) keeps its distance to the inner joint.
+    const pairs = TYPES[type].links.map(([a, b]) => [a, b, dist(P[a], P[b])]);
+    const linkResiduals = (pose, inp) => pairs.map(([a, b, l]) => dist(at(pose, P[b]), a === 'tieRodInner' ? tieInner(inp.rack) : P[a]) - l);
+    // Strut: the top-mount pivot stays on the strut axis, which is fixed to the upright (2 equations).
+    const strutResiduals = () => {
+      const d0 = unit(sub(P.strutTopMount, P.strutLower));
+      const e1 = unit(Math.abs(d0[0]) < 0.9 ? cross(d0, [1, 0, 0]) : cross(d0, [0, 1, 0])), e2 = cross(d0, e1);
+      return (pose) => { const r = sub(P.strutTopMount, at(pose, P.strutLower)); return [dot(r, matVec(pose.R, e1)), dot(r, matVec(pose.R, e2))]; };
+    };
+    if (type === 'multilink') {
+      // Five links (5 equations) + wheel-centre height. The steering axis is virtual: it runs
+      // through the crossing of the two lower link lines and of the two upper link lines.
+      residuals = (pose, inp) => [...linkResiduals(pose, inp), pose.t[2] - inp.travel];
+      steeringAxis = (pose) => {
+        const lo = virtualJoint(P.lowerForwardLinkInner, at(pose, P.lowerForwardLinkOuter), P.lowerRearwardLinkInner, at(pose, P.lowerRearwardLinkOuter));
+        const up = virtualJoint(P.upperForwardLinkInner, at(pose, P.upperForwardLinkOuter), P.upperRearwardLinkInner, at(pose, P.upperRearwardLinkOuter));
+        return lo && up && Math.abs(up[2] - lo[2]) > 1 ? [lo, up] : null;
+      };
+      damper = (pose) => [P.damperUpper.slice(), at(pose, P.damperLower)];
+    } else if (type === 'strutLinks') {
+      // Strut (2) + two lateral links and the trailing rod (3) + wheel-centre height.
+      const sr = strutResiduals();
+      residuals = (pose, inp) => [...sr(pose), ...linkResiduals(pose, inp), pose.t[2] - inp.travel];
+      steeringAxis = () => null;
+      damper = (pose) => [P.strutTopMount.slice(), at(pose, P.strutLower)];
+    } else if (type === 'trailingArm') {
+      // The arm turns about the line through its two pivots: the inboard pivot stays put (3) and
+      // the outboard pivot stays on the pivot axis (2), + wheel-centre height.
+      const A = P.trailingArmPivotInboard, B = P.trailingArmPivotOutboard, u = unit(sub(B, A));
+      const e1 = unit(Math.abs(u[0]) < 0.9 ? cross(u, [1, 0, 0]) : cross(u, [0, 1, 0])), e2 = cross(u, e1);
+      residuals = (pose, inp) => {
+        const a = sub(at(pose, A), A), b = sub(at(pose, B), B);
+        return [a[0], a[1], a[2], dot(b, e1), dot(b, e2), pose.t[2] - inp.travel];
+      };
+      steeringAxis = () => null;
+      damper = (pose) => [P.damperUpper.slice(), at(pose, P.damperLower)];
+    } else if (type === 'doubleWishbone') {
+      const lTie = dist(P.tieRodOuter, P.tieRodInner);
+      const lLf = dist(P.lowerArmOuter, P.lowerArmInnerForward);
+      const lLr = dist(P.lowerArmOuter, P.lowerArmInnerRearward);
       const lUf = dist(P.upperArmOuter, P.upperArmInnerForward);
       const lUr = dist(P.upperArmOuter, P.upperArmInnerRearward);
       residuals = (pose, inp) => {
@@ -748,6 +877,9 @@ window.SuspensionEngine = (function () {
         return [P.damperUpper.slice(), rotateAboutAxis(P.damperLower, P.lowerArmInnerRearward, sub(P.lowerArmInnerForward, P.lowerArmInnerRearward), th)];
       };
     } else {
+      const lTie = dist(P.tieRodOuter, P.tieRodInner);
+      const lLf = dist(P.lowerArmOuter, P.lowerArmInnerForward);
+      const lLr = dist(P.lowerArmOuter, P.lowerArmInnerRearward);
       const d0 = unit(sub(P.strutTopMount, P.strutLower));
       const e1 = unit(Math.abs(d0[0]) < 0.9 ? cross(d0, [1, 0, 0]) : cross(d0, [0, 1, 0]));
       const e2 = cross(d0, e1);
@@ -789,25 +921,28 @@ window.SuspensionEngine = (function () {
     // contact point: lowest point of the tyre circle (radius = loaded radius) in the wheel plane
     const down = unit(add([0, 0, -1], mul(s, s[2])));
     const cp = add(W, mul(down, model.wheel.radius));
-    const axis = mech.steeringAxis(pose);
-    const a = sub(axis[1], axis[0]);
-    const axisAt = (z) => add(axis[0], mul(a, (z - axis[0][2]) / a[2]));
-    const g = axisAt(cp[2]);
-    const aw = axisAt(W[2]);
+    const axis = mech.steeringAxis(pose);   // null when the type has no steering axis
     const fwd = unit(cross(s, [0, 0, 1]));
     const out = unit(cross([0, 0, 1], fwd));
     const res = {
-      travel: input.travel, rack: input.rack, pose, points, spin: s, wc: W, cp, axis, axisGround: g,
+      travel: input.travel, rack: input.rack, pose, points, spin: s, wc: W, cp, axis, axisGround: null,
       camber: camberDeg(s),
       toe: toeDeg(s),
-      caster: casterDeg(axis[0], axis[1]),
-      kpi: kpiDeg(axis[0], axis[1]),
-      scrub: dot(sub(cp, g), out),       // + when the contact patch is outboard of the steering axis at the ground
-      trail: dot(sub(g, cp), fwd),       // + when the steering axis meets the ground ahead of the contact patch
-      spindle: dot(sub(W, aw), out),     // wheel centre to steering axis, at wheel-centre height
+      caster: NaN, kpi: NaN, scrub: NaN, trail: NaN, spindle: NaN,
       damper: mech.damper(pose),
       rc: NaN, fvic: null, svic: null, antiDive: NaN, antiLift: NaN, antiSquat: NaN, mr: NaN,
     };
+    if (axis) {
+      const a = sub(axis[1], axis[0]);
+      const axisAt = (z) => add(axis[0], mul(a, (z - axis[0][2]) / a[2]));
+      const g = axisAt(cp[2]), aw = axisAt(W[2]);
+      res.axisGround = g;
+      res.caster = casterDeg(axis[0], axis[1]);
+      res.kpi = kpiDeg(axis[0], axis[1]);
+      res.scrub = dot(sub(cp, g), out);       // + when the contact patch is outboard of the steering axis at the ground
+      res.trail = dot(sub(g, cp), fwd);       // + when the steering axis meets the ground ahead of the contact patch
+      res.spindle = dot(sub(W, aw), out);     // wheel centre to steering axis, at wheel-centre height
+    }
     if (pp && pm) {
       const M = matMul(pp.R, transpose(pm.R));
       const w = mul([M[7] - M[5], M[2] - M[6], M[3] - M[1]], 0.5 / (2 * dz)); // angular velocity, rad per mm of travel
@@ -847,6 +982,15 @@ window.SuspensionEngine = (function () {
 
   /** Side-view (x, z) crossing of the lower pivot-axis line with the upper pivot-axis line (or the strut perpendicular at the top mount). */
   function sideViewPivotIC(type, P, cp) {
+    if (type === 'trailingArm') {
+      // The arm turns about its pivot axis, so the side-view IC is where that axis meets the
+      // side plane through the contact patch (exact; for a pure trailing arm it is the pivot itself).
+      const A = P.trailingArmPivotInboard, d = sub(P.trailingArmPivotOutboard, A);
+      if (Math.abs(d[1]) < 1e-9) return null;
+      const k = (cp[1] - A[1]) / d[1];
+      return [A[0] + k * d[0], cp[1], A[2] + k * d[2]];
+    }
+    if (type !== 'doubleWishbone' && type !== 'macpherson') return null;   // links: no pivot axes to draw
     const a1 = [P.lowerArmInnerRearward[0], P.lowerArmInnerRearward[2]];
     const d1 = [P.lowerArmInnerForward[0] - a1[0], P.lowerArmInnerForward[2] - a1[1]];
     let a2, d2;
@@ -976,7 +1120,7 @@ window.SuspensionEngine = (function () {
     const z = sw.zero;
     if (!z) return sw;
     const byRack = new Map(sw.samples.map((s) => [s.rack, s]));
-    const kingpinTrack = 2 * z.axisGround[1];
+    const kingpinTrack = 2 * (z.axisGround ? z.axisGround[1] : z.wc[1]);   // no steering axis: use the wheel centres
     for (const s of sw.samples) {
       s.steerL = -(s.toe - z.toe);                 // ISO: positive = steering left
       const m = byRack.get(-s.rack);
@@ -1058,7 +1202,7 @@ window.SuspensionEngine = (function () {
     for (const k in s.points) pts[k] = mirror(s.points[k]);
     return Object.assign({}, s, {
       side: 'right', points: pts, spin: mirror(s.spin), cp: mirror(s.cp), wc: mirror(s.wc),
-      axis: [mirror(s.axis[0]), mirror(s.axis[1])], axisGround: mirror(s.axisGround),
+      axis: s.axis && [mirror(s.axis[0]), mirror(s.axis[1])], axisGround: s.axisGround && mirror(s.axisGround),
       fvic: s.fvic && mirror(s.fvic), svic: s.svic && mirror(s.svic), svic2d: s.svic2d && mirror(s.svic2d), damper: [mirror(s.damper[0]), mirror(s.damper[1])],
     });
   }
@@ -1080,8 +1224,10 @@ window.SuspensionEngine = (function () {
   /** Steering-axis point at the height of the outer tie-rod joint (design position). */
   function kingpinAtTieRod(model) {
     const P = model.points[model.type];
-    const lo = P.lowerArmOuter, up = model.type === 'doubleWishbone' ? P.upperArmOuter : P.strutTopMount;
-    const a = sub(up, lo);
+    if (!P.tieRodOuter) return null;
+    const ax = buildMechanism(model).steeringAxis(identityPose());
+    if (!ax) return null;
+    const lo = ax[0], a = sub(ax[1], lo);
     return add(lo, mul(a, (P.tieRodOuter[2] - lo[2]) / a[2]));
   }
   /**
@@ -1093,6 +1239,7 @@ window.SuspensionEngine = (function () {
    */
   function steeringLayout(model) {
     const P = model.points[model.type], k = kingpinAtTieRod(model);
+    if (!k) return null;   // no toe link, or no steering axis
     const dx = P.tieRodOuter[0] - k[0], dy = P.tieRodOuter[1] - k[1];
     const behind = dx < 0;
     const inward = -dy;   // left corner: towards the centre line is −Y
@@ -1119,6 +1266,7 @@ window.SuspensionEngine = (function () {
    */
   function flipSteering(model) {
     const P = model.points[model.type], k = kingpinAtTieRod(model);
+    if (!k) return model;
     const o = P.tieRodOuter, i = P.tieRodInner;
     const o2 = [2 * k[0] - o[0], 2 * k[1] - o[1], o[2]];
     const i2 = [o2[0] - (i[0] - o[0]), i[1] + (o2[1] - o[1]), i[2]];
@@ -1126,6 +1274,22 @@ window.SuspensionEngine = (function () {
     for (const id in P) Pn[id] = P[id].slice();
     Pn.tieRodOuter = o2; Pn.tieRodInner = i2;
     return withPoints(model, Pn);
+  }
+  /**
+   * Trailing-arm pivot axis (left corner, design position). sweep: angle in plan view from
+   * the Y axis, + when the outboard pivot is further forward (0° = pure trailing arm, 90° =
+   * swing axle along the car). slope: angle seen from behind, + when the outboard pivot is
+   * lower. armLength: wheel centre to the pivot axis.
+   */
+  function trailingArmLayout(model) {
+    const P = model.points.trailingArm, A = P.trailingArmPivotInboard, d = sub(P.trailingArmPivotOutboard, A);
+    const u = unit(d), w = sub(P.wheelCentre, A);
+    return {
+      sweep: Math.atan2(d[0], d[1]) * DEG,
+      slope: Math.atan2(-d[2], Math.hypot(d[0], d[1])) * DEG,
+      armLength: len(sub(w, mul(u, dot(w, u)))),
+      pivotSpacing: len(d),
+    };
   }
 
   // ---------- packaging: room inside the wheel ----------
@@ -1175,6 +1339,16 @@ window.SuspensionEngine = (function () {
       for (let i = 0; i <= n; i++) m = Math.min(m, clearanceTo(env, wc, s, lerp(a, b, i / n), radius));
       out.push({ key, fixed: false, clearance: m });
     };
+    const T = TYPES[model.type];
+    if (model.type !== 'doubleWishbone' && model.type !== 'macpherson') {
+      // Separate links: every outer joint and every link; the strut tube as drawn.
+      for (const [a, b, part] of T.links) { point(b, b); seg(part === 'tieRod' ? 'tie' : part, P[a], P[b], part === 'tieRod' ? R.tieRod : R.arm); }
+      if (T.strut) {
+        const S = P.strutLower, d = unit(sub(P.strutLower, P.strutTopMount));
+        seg('tube', add(S, mul(d, 30)), add(S, mul(d, -0.6 * dist(model.points[model.type].strutTopMount, model.points[model.type].strutLower))), R.strut);
+      }
+      return out;   // a trailing arm is bolted to the hub, so there is nothing to check
+    }
     point('lowerArmOuter', 'lowerArmOuter');
     point('tieRodOuter', 'tieRodOuter');
     seg('lf', P.lowerArmInnerForward, P.lowerArmOuter, R.arm);
@@ -1242,6 +1416,7 @@ window.SuspensionEngine = (function () {
         rows.push({ name: pointName(model.axle, side, def).full, id: def.id, corner, x: q[0] + dx, y: q[1], z: q[2] });
       }
       for (const [id, label, p] of [['steeringAxisGround', 'steering axis at ground', s.axisGround], ['contactPatch', 'contact patch centre', s.cp]]) {
+        if (!p) continue;   // no steering axis
         const q = m(p);
         rows.push({ name: corner + ' · Derived · ' + label, id, corner, x: q[0] + dx, y: q[1], z: q[2] });
       }
@@ -1358,7 +1533,7 @@ window.SuspensionEngine = (function () {
   const withPoints = (model, P) => Object.assign({}, model, { points: Object.assign({}, model.points, { [model.type]: P }) });
   function quickAngles(mech, pose) {
     const s = matVec(pose.R, mech.s0), ax = mech.steeringAxis(pose);
-    return { toe: toeDeg(s), camber: camberDeg(s), caster: casterDeg(ax[0], ax[1]), wcx: mech.c0[0] + pose.t[0] };
+    return { toe: toeDeg(s), camber: camberDeg(s), caster: ax ? casterDeg(ax[0], ax[1]) : NaN, wcx: mech.c0[0] + pose.t[0] };
   }
   /** Target quantities of a design. Rates use ±2.5 mm, the same as the read-outs. Null if it cannot be solved. */
   function designMetrics(model, keys) {
@@ -1408,7 +1583,7 @@ window.SuspensionEngine = (function () {
       const leftTurn = steerL > 0;
       const inner = leftTurn ? steerL : -steerR, outer = leftTurn ? steerR : -steerL;
       out.innerLock = inner;
-      out.ackermann = ackermannPercent(inner, outer, 2 * s.axisGround[1], model.vehicle.wheelbase);
+      out.ackermann = ackermannPercent(inner, outer, 2 * (s.axisGround ? s.axisGround[1] : s.wc[1]), model.vehicle.wheelbase);
     }
     return out;
   }
@@ -1688,6 +1863,59 @@ window.SuspensionEngine = (function () {
       // Roll from the bar = Kθ · MR² · t² / arm² = 1 384 046 · 0.25 · 1500² / 200² N·mm/rad
       near('Roll stiffness from the bar = Kθ·MR²·t²/arm² = 339.69 N·m/°', r.rollBar, 79300 * Math.PI * 160000 / 32 / 900 * 0.25 * 1500 * 1500 / 40000 / 1000 * Math.PI / 180, 1e-6, ' N·m/°');
     });
+    safe('Multilink', () => {
+      // Five links that meet in pairs at the ball joints of the converging-arms double wishbone
+      // behave exactly like it: camber gain −1/FVSA (1850 mm), the same roll centre, and the
+      // virtual steering axis runs through the two ball joints.
+      const C = conv.points.doubleWishbone;
+      const ml = testModel('multilink', {
+        upperForwardLinkInner: C.upperArmInnerForward, upperForwardLinkOuter: C.upperArmOuter,
+        upperRearwardLinkInner: C.upperArmInnerRearward, upperRearwardLinkOuter: C.upperArmOuter,
+        lowerForwardLinkInner: C.lowerArmInnerForward, lowerForwardLinkOuter: C.lowerArmOuter,
+        lowerRearwardLinkInner: C.lowerArmInnerRearward, lowerRearwardLinkOuter: C.lowerArmOuter,
+        tieRodInner: C.tieRodInner, tieRodOuter: C.tieRodOuter, wheelCentre: C.wheelCentre,
+        damperUpper: [0, 500, 450], damperLower: [0, 650, 200] });
+      const up = at(ml, 0.25), dn = at(ml, -0.25);
+      near('Multilink, links meeting in pairs: camber gain = −1/FVSA, FVSA 1850 mm (°/mm)', (up.camber - dn.camber) / 0.5, -DEG / 1850, 1e-5, ' °/mm');
+      near('Multilink, links meeting in pairs: roll centre = 750 · 150 / 1850', at(ml, 0).rc, 750 * 150 / 1850, 0.01, ' mm');
+      near('Multilink: virtual steering axis through both joints, KPI = atan(50/350)', at(ml, 0).kpi, Math.atan(50 / 350) * DEG, 1e-6, '°');
+      near('Virtual joint of two crossing lines: (0, 0, 0)–(2, 2, 0) and (2, 0, 0)–(0, 2, 0) meet at y = 1', virtualJoint([0, 0, 0], [2, 2, 0], [2, 0, 0], [0, 2, 0])[1], 1, 1e-12, ' mm');
+    });
+    safe('Strut with lateral links', () => {
+      // The MacPherson check geometry, with the lower arm replaced by two equal, parallel lateral
+      // links (same front-view line) and a trailing rod along X. At ride height the upright moves
+      // exactly as on that MacPherson: camber gain −1/FVSA (4450 mm), roll centre 750·650/4450.
+      const sl = testModel('strutLinks', {
+        strutTopMount: [0, 700, 650], strutLower: [0, 700, 350],
+        forwardLinkInner: [100, 300, 150], forwardLinkOuter: [100, 700, 100],
+        rearwardLinkInner: [-100, 300, 150], rearwardLinkOuter: [-100, 700, 100],
+        trailingRodForward: [400, 700, 100], trailingRodRearward: [0, 700, 100], wheelCentre: [0, 750, 300] });
+      const up = at(sl, 0.25), dn = at(sl, -0.25);
+      near('Strut with lateral links: camber gain = −1/FVSA, FVSA 4450 mm (°/mm)', (up.camber - dn.camber) / 0.5, -DEG / 4450, 1e-5, ' °/mm');
+      near('Strut with lateral links: roll centre = 750 · 650 / 4450', at(sl, 0).rc, 750 * 650 / 4450, 0.01, ' mm');
+      const s = at(sl, 60), P = sl.points.strutLinks;
+      near('Strut with lateral links at +60 mm: trailing rod length unchanged', dist(s.points.trailingRodRearward, P.trailingRodForward), 400, 1e-6, ' mm');
+    });
+    safe('Trailing arm', () => {
+      // Pure trailing arm: pivot axis along Y, 400 mm ahead of and 100 mm above the wheel centre.
+      const ta = testModel('trailingArm', { trailingArmPivotInboard: [400, 300, 400], trailingArmPivotOutboard: [400, 700, 400], wheelCentre: [0, 750, 300],
+        damperUpper: [-50, 600, 600], damperLower: [-50, 650, 250] });
+      near('Pure trailing arm: anti-squat = tan θ / (h/L) = (100/400) / (500/2500) = 125 %', at(ta, 0).antiSquat, 125, 0.01, ' %');
+      const t50 = at(ta, 50);
+      near('Pure trailing arm at +50 mm: wheel centre on a circle, x = 400 − √(412.3² − 50²)', t50.wc[0], 400 - Math.sqrt(170000 - 2500), 1e-6, ' mm');
+      near('Pure trailing arm at +50 mm: camber unchanged', t50.camber, 0, 1e-9, '°');
+      // Semi-trailing arm: horizontal axis swept 20° (outboard pivot forward), 350 mm from the wheel centre.
+      // Turning about it, the spin axis tips by sin 20° of the arm angle: camber gain −sin 20°/350 rad per mm, no toe change.
+      const a = 20 * RAD, u = [Math.sin(a), Math.cos(a), 0], Q = [350 * Math.cos(a), 750 - 350 * Math.sin(a), 300];
+      const st = testModel('trailingArm', { trailingArmPivotInboard: sub(Q, mul(u, 300)), trailingArmPivotOutboard: Q, wheelCentre: [0, 750, 300],
+        damperUpper: [-50, 600, 600], damperLower: [-50, 650, 250] });
+      const up = at(st, 0.25), dn = at(st, -0.25);
+      near('Semi-trailing arm, axis swept 20°, 350 mm away: camber gain = −sin 20° / 350 rad per mm', (up.camber - dn.camber) / 0.5, -Math.sin(a) / 350 * DEG, 1e-5, ' °/mm');
+      near('Semi-trailing arm with a level axis: no toe change at ride height', (up.toe - dn.toe) / 0.5, 0, 1e-5, ' °/mm');
+      const lay = trailingArmLayout(st);
+      near('Semi-trailing arm layout: sweep 20°', lay.sweep, 20, 1e-9, '°');
+      near('Semi-trailing arm layout: wheel centre 350 mm from the pivot axis', lay.armLength, 350, 1e-9, ' mm');
+    });
     safe('Whole car in roll', () => {
       // 1000 kg sprung (250 kg corners), CG 500 mm, both roll centres 100 mm, 1000 N·m/° per axle:
       // roll moment 1000 · 9.81 · 0.4 = 3924 N·m per g over 2000 N·m/° → 1.962 °/g.
@@ -1755,20 +1983,22 @@ window.SuspensionEngine = (function () {
       near('Lock & solve, only Y free: z stays 450', Uy[2], 450, 1e-9, ' mm');
     });
     safe('Examples', () => {
-      for (const type of ['doubleWishbone', 'macpherson']) {
+      for (const type of Object.keys(TYPES)) {
         const m = exampleModel(); m.type = type;
+        const front = type === 'doubleWishbone' || type === 'macpherson';   // the other examples are rear corners
+        m.axle = front ? 'front' : 'rear';
         const mech = buildMechanism(m);
-        const t = sweepTravel(mech, m), st = sweepSteer(mech, m);
-        out.push({ name: 'Example ' + (type === 'macpherson' ? 'MacPherson' : 'double wishbone') + ' solves through full travel and rack',
+        const t = sweepTravel(mech, m), st = front ? sweepSteer(mech, m) : { failHigh: null, failLow: null, samples: [] };
+        out.push({ name: 'Example ' + TYPES[type].label.toLowerCase() + (front ? ' solves through full travel and rack' : ' (rear) solves through full travel'),
           pass: t.failHigh === null && t.failLow === null && st.failHigh === null && st.failLow === null,
-          detail: 'travel ' + t.samples.length + ' positions, steering ' + st.samples.length + ' positions' });
+          detail: 'travel ' + t.samples.length + ' positions' + (front ? ', steering ' + st.samples.length + ' positions' : '') });
       }
     });
     return out;
   }
 
   return {
-    POINTS, pointName, exampleModel, buildMechanism, solve, solveFrom, analyse, sweepTravel, sweepSteer, evaluate,
+    POINTS, TYPES, PART_NAMES, virtualJoint, trailingArmLayout, pointName, exampleModel, buildMechanism, solve, solveFrom, analyse, sweepTravel, sweepSteer, evaluate,
     rollAt, sweepRoll,
     TARGETS, designMetrics, targetMet, travelFeasible, createTargetSolver, steeringLayout, flipSteering,
     PACK_RADIUS, DEFAULT_CLEARANCE, wheelEnvelope, wheelClearance, packagingCheck, packagingAt, hardpointRows, hardpointsCsv, hardpointsFromCsv,
@@ -1869,16 +2099,26 @@ const METRICS = {
 const ROLL_KEYS = ['camberGroundL', 'camberGroundR', 'rcRollH', 'rcRollY', 'toeL', 'toeR', 'travelL'];
 const TRAVEL_KEYS = ['camber', 'toe', 'caster', 'kpi', 'scrub', 'trail', 'spindle', 'rc', 'track', 'wcx', 'antiDive', 'antiSquat', 'antiLift', 'antiDive2d', 'antiSquat2d', 'antiLift2d', 'mr', 'wheelRate', 'rideFreq'];
 const STEER_KEYS = ['steerL', 'steerR', 'ackermann', 'camber', 'caster', 'kpi', 'scrub', 'trail'];
-const PART_COLOR = { upperArm: '--part-upper', lowerArm: '--part-lower', tieRod: '--part-tie', wheel: '--ink-2', damper: '--part-damper', strut: '--part-damper' };
+const PART_COLOR = { upperArm: '--part-upper', lowerArm: '--part-lower', tieRod: '--part-tie', wheel: '--ink-2', damper: '--part-damper', strut: '--part-damper',
+  upperForwardLink: '--part-upper', upperRearwardLink: '--part-upper', lowerForwardLink: '--part-lower', lowerRearwardLink: '--part-lower',
+  forwardLink: '--part-lower', rearwardLink: '--part-lower', trailingRod: '--part-upper', trailingArm: '--part-lower' };
+/** 3D material key of each part. */
+const PART_MAT = { upperArm: 'upper', lowerArm: 'lower', tieRod: 'tie', upperForwardLink: 'upper', upperRearwardLink: 'upper', lowerForwardLink: 'lower', lowerRearwardLink: 'lower',
+  forwardLink: 'lower', rearwardLink: 'lower', trailingRod: 'upper', trailingArm: 'lower' };
+const typeAllowed = (type, axle) => E.TYPES[type].axles.includes(axle);
 
 // ---------------------------------------------------------------- state
 const STORAGE_KEY = 'suspension-kinematics-prototype/v1';
 const MAX_VARIANTS = 4;
 function validModel(m) {
   try {
-    const ok = m && m.version === 1 && (m.type === 'doubleWishbone' || m.type === 'macpherson') && (m.axle === 'front' || m.axle === 'rear');
+    const ok = m && m.version === 1 && E.TYPES[m.type] && (m.axle === 'front' || m.axle === 'rear') && m.points && m.points[m.type];
     if (!ok) return false;
-    for (const t of Object.keys(E.POINTS)) for (const d of E.POINTS[t]) { const p = m.points[t][d.id]; if (!Array.isArray(p) || p.length !== 3 || !p.every(Number.isFinite)) return false; }
+    // The active type must be complete; other types may be missing (older files) and are filled in by normalizeModel.
+    for (const t of Object.keys(E.POINTS)) {
+      if (!m.points[t] && t !== m.type) continue;
+      for (const d of E.POINTS[t]) { const p = m.points[t][d.id]; if (!Array.isArray(p) || p.length !== 3 || !p.every(Number.isFinite)) return false; }
+    }
     return ['radius', 'width', 'rimDiameter', 'camber', 'toe'].every((k) => Number.isFinite(m.wheel[k]))
       && ['wheelbase', 'cgHeight', 'brakeFront'].every((k) => Number.isFinite(m.vehicle[k]))
       && ['bump', 'droop', 'rack'].every((k) => Number.isFinite(m.sweep[k]));
@@ -1912,6 +2152,10 @@ function cleanSet(o) {
 }
 /** Older saved models have no locks or targets; the wheel centre starts locked. */
 function normalizeModel(m) {
+  // Types added after the design was saved start from the example geometry.
+  const ex = E.exampleModel();
+  for (const t of Object.keys(E.POINTS)) if (!m.points[t]) m.points[t] = ex.points[t];
+  if (!typeAllowed(m.type, m.axle)) m.axle = E.TYPES[m.type].axles[0];
   if (!m.locks || typeof m.locks !== 'object') m.locks = {};
   for (const t of Object.keys(E.POINTS)) {
     if (!m.locks[t] || typeof m.locks[t] !== 'object') m.locks[t] = { wheelCentre: 'xyz' };
@@ -1974,7 +2218,7 @@ function setBaseline() { state.baseline = snapshot(); state.compare = 'baseline'
 const activeVariant = () => state.variants[state.active];
 const variantModel = (v) => (v === activeVariant() ? state.model : v.model);
 const variantByName = (n) => state.variants.find((v) => v.name === n) || null;
-const typeShort = (m) => (m.type === 'macpherson' ? 'MacPherson' : 'Double wishbone');
+const typeShort = (m) => E.TYPES[m.type].label;
 const variantTitle = (v) => { const m = variantModel(v); return 'Variant ' + v.name + ': ' + typeShort(m).toLowerCase() + ', ' + m.axle + ' axle'; };
 /** All variants as plain data, for saving and sharing. */
 function variantSet() { return { active: activeVariant().name, list: state.variants.map((v) => ({ name: v.name, model: variantModel(v) })) }; }
@@ -2113,7 +2357,11 @@ const PACK_LABELS = {
   lf: 'Lower arm, forward leg', lr: 'Lower arm, rearward leg', uf: 'Upper arm, forward leg', ur: 'Upper arm, rearward leg',
   tie: 'Tie rod', tube: 'Strut tube',
 };
-function packLabel(key) { const l = PACK_LABELS[key] || key; return state.model.axle === 'rear' ? l.replace('tie-rod', 'toe-link').replace('Tie rod', 'Toe link') : l; }
+function packLabel(key) {
+  // links are keyed by part, joints by point id
+  let l = PACK_LABELS[key] || E.PART_NAMES[key];
+  if (!l) { const def = E.POINTS[state.model.type].find((d) => d.id === key); l = def ? E.pointName(state.model.axle, 'left', def).part + ', outer joint' : key; }
+  return state.model.axle === 'rear' ? l.replace('tie-rod', 'toe-link').replace('Tie rod', 'Toe link') : l; }
 /** Keys of joints and links that are closer to the wheel than the required clearance. */
 function packBad() { const req = requiredClearance(); return new Set(pack ? pack.items.filter((i) => i.clearance < req).map((i) => i.key) : []); }
 function renderPack() {
@@ -2122,7 +2370,11 @@ function renderPack() {
   const req = requiredClearance(), R = E.PACK_RADIUS, env = pack.env;
   $('#packNote').textContent = 'Clearance to rim, tyre and hub face, worst case over full bump and droop' + (state.model.axle === 'front' ? ' combined with full lock both ways' : '')
     + '. Required: ' + fmtL(req, 0) + ' (set it under Design targets). Ball joints count as ' + fmtL(R.joint * 2, 0) + ' spheres, arms as ' + fmtL(R.arm * 2, 0) + ' and tie rods as ' + fmtL(R.tieRod * 2, 0) + ' tubes'
-    + (state.model.type === 'macpherson' ? ', the strut tube as ' + fmtL(R.strut * 2, 0) : '') + '. Inside of the barrel: Ø' + fmtL(env.barrelR * 2, 0) + '. Brake disc and caliper are not modelled.';
+    + (E.TYPES[state.model.type].strut ? ', the strut tube as ' + fmtL(R.strut * 2, 0) : '') + '. Inside of the barrel: Ø' + fmtL(env.barrelR * 2, 0) + '. Brake disc and caliper are not modelled.';
+  if (!pack.items.length) {
+    $('#packNote').textContent = 'Nothing to check here: the ' + (state.model.type === 'trailingArm' ? 'trailing arm is bolted to the hub' : 'links stay clear of the wheel') + ', so no joint or link moves near the rim or tyre. Brake disc and caliper are not modelled.';
+    return;
+  }
   const thead = document.createElement('thead');
   thead.innerHTML = '<tr><th>Part</th><th>Clearance</th><th>Worst at</th></tr>';
   const tb = document.createElement('tbody');
@@ -2156,14 +2408,34 @@ let flipNote = null;   // { text, key } shown until the steering points change a
 function renderSteerLayout() {
   const m = state.model, rear = m.axle === 'rear', lay = E.steeringLayout(m);
   const link = rear ? 'Toe link' : 'Rack';
+  const tbl = $('#steerLayoutTable'); tbl.textContent = '';
+  const tb = document.createElement('tbody');
+  const add = (label, value, title) => { const tr = document.createElement('tr'); const a = document.createElement('td'); a.textContent = label; if (title) a.title = title; const b = document.createElement('td'); b.className = 'v'; b.textContent = value; tr.append(a, b); tb.append(tr); };
+  $('#rackSideSeg').hidden = !lay;
+  if (!lay) {
+    if (m.type === 'trailingArm') {
+      // The arm's pivot axis decides camber and toe change: square to the car = trailing arm, swept = semi-trailing.
+      const t = E.trailingArmLayout(m);
+      $('#steerLayoutTitle').textContent = 'Trailing arm layout';
+      add('Pivot axis sweep, seen from above', num(Math.abs(t.sweep), 1) + '° ' + (Math.abs(t.sweep) < 0.05 ? '(pure trailing arm)' : t.sweep > 0 ? 'outboard pivot forward' : 'outboard pivot rearward'), '0° = pure trailing arm (no camber change). The more sweep, the more it acts like a swing axle: camber change in bump and roll.');
+      add('Pivot axis slope, seen from behind', num(Math.abs(t.slope), 1) + '° ' + (Math.abs(t.slope) < 0.05 ? '(level)' : t.slope > 0 ? 'outboard pivot lower' : 'outboard pivot higher'), 'A sloping axis turns the wheel about a vertical axis as it moves: toe change in bump.');
+      add('Wheel centre to the pivot axis', fmtL(t.armLength, 1));
+      add('Pivots apart', fmtL(t.pivotSpacing, 1));
+      tbl.append(tb);
+      $('#steerLayoutNote').textContent = 'Camber change per mm of bump is about sin(sweep) / arm length. Toe change comes from the slope.';
+    } else {
+      $('#steerLayoutTitle').textContent = m.type === 'strutLinks' ? 'Toe control' : 'Steering layout';
+      $('#steerLayoutNote').textContent = m.type === 'strutLinks'
+        ? 'The two lateral links set the toe. Equal, parallel links keep it constant through travel; making one shorter or tilting it gives toe change (passive rear steer).'
+        : 'The steering axis is not defined here (the link lines do not cross), so the steering layout cannot be shown.';
+    }
+    return;
+  }
   $('#steerLayoutTitle').textContent = rear ? 'Toe link layout' : 'Steering layout';
   for (const b of document.querySelectorAll('#rackSideSeg button')) {
     b.setAttribute('aria-pressed', String(b.dataset.side === lay.side));
     b.textContent = link + (b.dataset.side === 'behind' ? ' behind the axle' : ' in front of the axle');
   }
-  const tbl = $('#steerLayoutTable'); tbl.textContent = '';
-  const tb = document.createElement('tbody');
-  const add = (label, value, title) => { const tr = document.createElement('tr'); const a = document.createElement('td'); a.textContent = label; if (title) a.title = title; const b = document.createElement('td'); b.className = 'v'; b.textContent = value; tr.append(a, b); tb.append(tr); };
   const dir = (deg) => num(Math.abs(deg), 1) + '° ' + (deg >= 0 ? 'inwards' : 'outwards');
   add('Steering arm, seen from above', fmtL(lay.armLength, 1) + ' · ' + dir(lay.armAngle), 'From the steering axis to the outer joint, in plan view. Inwards = towards the car centre line.');
   if (!rear) add('Arm angle for 100 % Ackermann', dir(lay.ackermannAngle), 'The arm line then passes through the middle of the rear axle (classic Ackermann, small steer angles).');
@@ -2177,7 +2449,8 @@ function renderSteerLayout() {
     : 'Ackermann needs the steering arm angled inwards with the rack behind the axle, and outwards with it in front. Switching mirrors the arm through the steering axis. That keeps Ackermann at small steer angles, but at full lock the tie rod swings differently, so check Ackermann and bump steer afterwards.';
 }
 for (const b of document.querySelectorAll('#rackSideSeg button')) b.addEventListener('click', () => {
-  if (E.steeringLayout(state.model).side === b.dataset.side) return;
+  const lay0 = E.steeringLayout(state.model);
+  if (!lay0 || lay0.side === b.dataset.side) return;
   const before = nowValues(), layBefore = E.steeringLayout(state.model);
   const flipped = E.flipSteering(state.model).points[state.model.type];
   setBaseline();
@@ -2416,11 +2689,13 @@ function syncParams() {
 // ---------------------------------------------------------------- top bar, transport, modes
 for (const b of document.querySelectorAll('#typeSeg button')) b.addEventListener('click', () => {
   if (state.model.type === b.dataset.type) return;
-  commit(() => { state.model.type = b.dataset.type; state.selected = null; state.hover = null; });
-  buildPointTable(); refresh();
+  const t = b.dataset.type, toRear = !typeAllowed(t, state.model.axle);
+  commit(() => { state.model.type = t; if (toRear) state.model.axle = 'rear'; state.selected = null; state.hover = null; });
+  buildPointTable(); buildChartOptions(); refresh();
+  if (toRear) toast(E.TYPES[t].label + ' is a rear suspension here, so the axle was set to Rear.');
 });
 for (const b of document.querySelectorAll('#axleSeg button')) b.addEventListener('click', () => {
-  if (state.model.axle === b.dataset.axle) return;
+  if (state.model.axle === b.dataset.axle || b.disabled) return;
   commit(() => { state.model.axle = b.dataset.axle; });
   buildPointTable(); buildChartOptions(); refresh();
 });
@@ -2429,7 +2704,7 @@ for (const b of document.querySelectorAll('#modeSeg button')) b.addEventListener
   state.mode = b.dataset.mode; buildChartOptions(); syncControls(); renderCharts();
 });
 // ---------------------------------------------------------------- CSV export
-const csvName = () => 'hardpoints-' + (state.model.type === 'macpherson' ? 'macpherson' : 'double-wishbone') + '-' + state.model.axle + '.csv';
+const csvName = () => 'hardpoints-' + E.TYPES[state.model.type].slug + '-' + state.model.axle + '.csv';
 function showCsv(select) {
   const ta = $('#csvText');
   ta.value = E.hardpointsCsv(state.model);
@@ -2476,7 +2751,7 @@ $('#importCsvFile').addEventListener('change', async (ev) => {
   if (r.error) { $('#csvStatus').textContent = got.name + ': ' + r.error; return; }
   const n = Object.keys(r.points).length;
   if (!n) { $('#csvStatus').textContent = got.name + ': no points for this suspension type.'; return; }
-  const typeName = r.type === 'macpherson' ? 'MacPherson' : 'double wishbone';
+  const typeName = E.TYPES[r.type].label.toLowerCase().replace('macpherson', 'MacPherson');
   setBaseline();
   commit(() => {
     state.model.type = r.type; state.model.axle = r.axle;
@@ -2540,7 +2815,7 @@ function openModel(m, text) {
   toast(text);
 }
 const designName = () => (state.variants.length > 1 ? 'suspension-variants-' + state.variants.map((v) => v.name).join('') + '.json'
-  : 'suspension-' + (state.model.type === 'macpherson' ? 'macpherson' : 'double-wishbone') + '-' + state.model.axle + '.json');
+  : 'suspension-' + E.TYPES[state.model.type].slug + '-' + state.model.axle + '.json');
 $('#saveDesignBtn').addEventListener('click', async () => {
   const text = designFile(state.model, variantSet());
   if (canDownload) { downloadText(designName(), text, 'application/json'); $('#designStatus').textContent = 'Saved ' + designName() + ' to your downloads folder. Open it again with Open design.'; return; }
@@ -2684,7 +2959,11 @@ function syncTransport() {
 function syncControls() {
   const m = state.model;
   for (const b of document.querySelectorAll('#typeSeg button')) b.setAttribute('aria-pressed', String(b.dataset.type === m.type));
-  for (const b of document.querySelectorAll('#axleSeg button')) b.setAttribute('aria-pressed', String(b.dataset.axle === m.axle));
+  for (const b of document.querySelectorAll('#axleSeg button')) {
+    b.setAttribute('aria-pressed', String(b.dataset.axle === m.axle));
+    b.disabled = !typeAllowed(m.type, b.dataset.axle);
+    b.title = b.disabled ? E.TYPES[m.type].label + ' is offered as a rear suspension only' : '';
+  }
   for (const b of document.querySelectorAll('#modeSeg button')) { b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)); b.disabled = b.dataset.mode === 'steer' && m.axle !== 'front'; }
   $('#undoBtn').disabled = !state.undo.length;
   $('#redoBtn').disabled = !state.redo.length;
@@ -3006,7 +3285,7 @@ function renderCompare() {
     row(label + ' (' + rt.unit.trim() + ')', sums.map((s) => (s && Number.isFinite(s[key]) ? signed(s[key] * rt.f, dv) : '–')), title);
   };
   group('Layout');
-  row('Suspension', vs.map((v) => (variantModel(v).type === 'macpherson' ? 'MacPh.' : 'DW')), 'DW = double wishbone, MacPh. = MacPherson strut');
+  row('Suspension', vs.map((v) => E.TYPES[variantModel(v).type].short), 'DW = double wishbone, MacPh. = MacPherson strut, 5-link = multilink, Strut+L = strut with lateral links, Trailing = trailing or semi-trailing arm');
   row('Axle', vs.map((v) => variantModel(v).axle));
   if (sums.some((s) => !s)) row('Ride height', sums.map((s) => (s ? 'solved' : { text: 'no solution', cls: 'miss' })));
   group('At ride height');
@@ -3117,7 +3396,10 @@ function renderSteerTable() {
   tbl.append(tb);
 }
 // ---------------------------------------------------------------- design targets (lock & solve)
-const targetDefs = () => E.TARGETS.filter((t) => !t.axle || t.axle === state.model.axle);
+// Without a steering axis (trailing arm, strut with lateral links) the steering-axis quantities do not exist.
+const AXIS_TARGETS = ['kpi', 'caster', 'trail', 'scrub', 'spindle', 'casterGain'];
+const targetKey = () => state.model.axle + '/' + E.TYPES[state.model.type].axis;
+const targetDefs = () => E.TARGETS.filter((t) => (!t.axle || t.axle === state.model.axle) && !(E.TYPES[state.model.type].axis === 'none' && AXIS_TARGETS.includes(t.key)));
 /** Every target quantity, read from a travel sweep and a steering sweep. */
 function valuesFromSweeps(sT, sS, rack) {
   const z = sT && sT.zero;
@@ -3155,7 +3437,7 @@ function targetText(tv, def) {
 }
 function buildTargetTable() {
   const tbl = $('#targetTable'); tbl.textContent = '';
-  tbl.dataset.key = state.model.axle;
+  tbl.dataset.key = targetKey();
   const thead = document.createElement('thead');
   thead.innerHTML = '<tr><th>Quantity</th><th>Target</th><th>Now</th><th>Proposal</th></tr>';
   const tb = document.createElement('tbody');
@@ -3179,7 +3461,7 @@ function buildTargetTable() {
   tbl.append(thead, tb);
 }
 function renderTargets() {
-  if ($('#targetTable').dataset.key !== state.model.axle) buildTargetTable();
+  if ($('#targetTable').dataset.key !== targetKey()) buildTargetTable();
   const now = nowValues(), T = state.model.targets, pr = state.proposal;
   for (const tr of document.querySelectorAll('#targetTable tbody tr')) {
     const key = tr.dataset.key, def = E.TARGETS.find((t) => t.key === key), tv = T[key];
@@ -3256,12 +3538,21 @@ function renderUpright() {
   const tb = document.createElement('tbody');
   const row = (label, p) => { const tr = document.createElement('tr'); [label, num(W[1] - p[1], 1), num(p[2] - W[2], 1), num(p[0] - W[0], 1)].forEach((t, i) => { const td = document.createElement('td'); td.textContent = t; if (i === 0) td.title = 'Relative to the wheel centre'; tr.append(td); }); tb.append(tr); };
   const line = (label, value) => { const tr = document.createElement('tr'); const a = document.createElement('td'); a.textContent = label; const b = document.createElement('td'); b.colSpan = 3; b.className = 'v'; b.textContent = value; tr.append(a, b); tb.append(tr); };
-  row('Lower ball joint', P.lowerArmOuter);
-  if (dw) row('Upper ball joint', P.upperArmOuter); else row('Strut axis point', P.strutLower);
-  row((rear ? 'Toe link' : 'Tie rod') + ' outer', P.tieRodOuter);
-  const lo = s.axis[0], up = s.axis[1], u = V.unit(V.sub(up, lo));
-  if (dw) line('Ball joint spacing', fmtL(V.dist(P.lowerArmOuter, P.upperArmOuter), 1));
-  line('Steering arm (to axis)', fmtL(V.len(V.cross(V.sub(P.tieRodOuter, lo), u)), 1));
+  const type = state.model.type;
+  if (type === 'doubleWishbone' || type === 'macpherson') {
+    row('Lower ball joint', P.lowerArmOuter);
+    if (dw) row('Upper ball joint', P.upperArmOuter); else row('Strut axis point', P.strutLower);
+    row((rear ? 'Toe link' : 'Tie rod') + ' outer', P.tieRodOuter);
+  } else {
+    // every joint on the upright (or arm), except the wheel centre itself
+    for (const def of E.POINTS[type]) if (def.body === 'upright' && def.id !== 'wheelCentre') { const n = E.pointName(state.model.axle, 'left', def); row(n.part + ', ' + n.point.replace(/ \(.*\)$/, ''), P[def.id]); }
+    if (s.axis) { row('Virtual lower joint', s.axis[0]); row('Virtual upper joint', s.axis[1]); }
+  }
+  if (s.axis) {
+    const lo = s.axis[0], up = s.axis[1], u = V.unit(V.sub(up, lo));
+    if (dw) line('Ball joint spacing', fmtL(V.dist(P.lowerArmOuter, P.upperArmOuter), 1));
+    if (P.tieRodOuter) line('Steering arm (to axis)', fmtL(V.len(V.cross(V.sub(P.tieRodOuter, lo), u)), 1));
+  } else line('Steering axis', 'none: the wheel does not steer, and its toe is held by the ' + (type === 'trailingArm' ? 'arm' : 'lateral links'));
   tbl.append(thead, tb);
 }
 $('#targetTable').addEventListener('change', (e) => {
@@ -3503,7 +3794,36 @@ class Corner {
     this.group.visible = !!s;
     if (!s) return;
     const p = s.points;
-    if (model.type === 'doubleWishbone') {
+    const T = E.TYPES[model.type];
+    if (model.type === 'multilink' || model.type === 'strutLinks' || model.type === 'trailingArm') {
+      // Upright drawn as a hub (60 mm inboard of the wheel centre) with arms out to every joint on it.
+      const hub = V.sub(p.wheelCentre, V.mul(s.spin, 60));
+      for (const [a, b, part] of T.links) {
+        if (part === 'tieRod') continue;   // drawn below
+        this.bar(part, p[a], p[b], 5, PART_MAT[part]);
+        this.bar('up-' + b, hub, p[b], 6, 'upright');
+      }
+      this.bar('stub', hub, p.wheelCentre, 12, 'upright');
+      if (p.tieRodOuter) this.bar('up-tie', hub, p.tieRodOuter, 6, 'upright');
+      if (T.strut) {
+        const P0 = model.points[model.type], S = p.strutLower, Tm = p.strutTopMount;
+        const dirNow = V.unit(V.sub(p.strutLower, s.damper[0]));
+        const tubeTop = V.add(S, V.mul(dirNow, -0.6 * V.dist(P0.strutTopMount, P0.strutLower)));
+        this.bar('tube', V.add(S, V.mul(dirNow, 30)), tubeTop, 22, 'damper');
+        this.bar('rod', tubeTop, Tm, 8, 'damper');
+        this.bar('knuckle', S, hub, 10, 'upright');
+      }
+      if (model.type === 'trailingArm') {
+        this.bar('armIn', p.trailingArmPivotInboard, hub, 9, 'lower');
+        this.bar('armOut', p.trailingArmPivotOutboard, hub, 9, 'lower');
+      }
+      if (p.damperUpper) {
+        const mid = V.lerp(p.damperLower, p.damperUpper, 0.55);
+        this.bar('dBody', p.damperLower, mid, 17, 'damper');
+        this.bar('dRod', mid, p.damperUpper, 6, 'damper');
+        if (model.type === 'trailingArm') this.bar('dMount', p.damperLower, hub, 6, 'lower');
+      }
+    } else if (model.type === 'doubleWishbone') {
       this.bar('uf', p.upperArmInnerForward, p.upperArmOuter, 6, 'upper');
       this.bar('ur', p.upperArmInnerRearward, p.upperArmOuter, 6, 'upper');
       this.bar('lf', p.lowerArmInnerForward, p.lowerArmOuter, 7, 'lower');
@@ -3528,7 +3848,7 @@ class Corner {
       this.bar('sa', V.footOnLine(p.tieRodOuter, S, p.lowerArmOuter), p.tieRodOuter, 7, 'upright');
       this.bar('stub', V.footOnLine(p.wheelCentre, S, p.lowerArmOuter), p.wheelCentre, 12, 'upright');
     }
-    this.bar('tie', p.tieRodInner, p.tieRodOuter, 5, 'tie');
+    if (p.tieRodInner) this.bar('tie', p.tieRodInner, p.tieRodOuter, 5, 'tie');
     for (const def of E.POINTS[model.type]) {
       const chassis = def.body === 'chassis' || def.body === 'rack';
       const r = def.id === sel ? 14 : def.id === hov ? 12 : 8;
@@ -3588,7 +3908,11 @@ function frontSegs(s, type) {
   const P = s.points, segs = [];
   const rcP = rcPointNow();
   if (farOk(s.fvic)) {
-    segs.push([P.lowerArmOuter, s.fvic], [type === 'doubleWishbone' ? P.upperArmOuter : P.strutTopMount, s.fvic], [s.cp, s.fvic]);
+    // Lines from the joints that guide the upright (for links: the virtual joints) to the IC.
+    if (type === 'doubleWishbone' || type === 'macpherson') segs.push([P.lowerArmOuter, s.fvic], [type === 'doubleWishbone' ? P.upperArmOuter : P.strutTopMount, s.fvic]);
+    else if (s.axis) segs.push([s.axis[0], s.fvic], [s.axis[1], s.fvic]);
+    else if (type === 'strutLinks') segs.push([P.strutTopMount, s.fvic]);
+    segs.push([s.cp, s.fvic]);
   }
   if (rcP) segs.push([s.cp, rcP]);
   return segs;
@@ -3605,6 +3929,8 @@ function pivotSegs(s, type) {
   const P = s.points, ic = s.svic2d;
   const side = (p) => Math.hypot(p[0] - ic[0], p[2] - ic[2]);
   const along = (a, b) => [side(a) > side(b) ? a : b, ic];
+  if (type === 'trailingArm') return [along(P.trailingArmPivotInboard, P.trailingArmPivotOutboard)];
+  if (type !== 'doubleWishbone' && type !== 'macpherson') return [];
   const segs = [along(P.lowerArmInnerForward, P.lowerArmInnerRearward)];
   segs.push(type === 'doubleWishbone' ? along(P.upperArmInnerForward, P.upperArmInnerRearward) : [P.strutTopMount, ic]);
   return segs;
@@ -3627,8 +3953,10 @@ function updateScene() {
   else modelGroup.position.z = -state.travel;
   modelGroup.updateMatrixWorld(true);
   if (l) {
-    const d = V.unit(V.sub(l.axis[1], l.axis[0]));
-    axisLines.set(dashDot(V.sub(l.axisGround, V.mul(d, 70)), V.add(l.axis[1], V.mul(d, 150)), 34, 8, 3));
+    if (l.axis) {
+      const d = V.unit(V.sub(l.axis[1], l.axis[0]));
+      axisLines.set(dashDot(V.sub(l.axisGround, V.mul(d, 70)), V.add(l.axis[1], V.mul(d, 150)), 34, 8, 3));
+    } else axisLines.set([]);
     frontL.set(frontSegs(l, state.model.type));
     frontR.set(frontSegs(r, state.model.type));
     const marks = [];
@@ -3843,20 +4171,26 @@ makeTag(views.side, '', () => (cur && cur.left && farOk(cur.left.svic2d) ? dzv(c
 const PART_TAGS = [
   { text: 'Upper arm', color: '--part-upper', types: ['doubleWishbone'], at: (p) => V.lerp(V.lerp(p.upperArmInnerForward, p.upperArmInnerRearward, 0.5), p.upperArmOuter, 0.12) },
   { text: 'Lower arm', color: '--part-lower', types: ['doubleWishbone', 'macpherson'], at: (p) => V.lerp(p.lowerArmInnerForward, p.lowerArmInnerRearward, 0.5) },
-  { text: () => (state.model.axle === 'rear' ? 'Toe link' : 'Tie rod'), color: '--part-tie', types: ['doubleWishbone', 'macpherson'], at: (p) => p.tieRodInner },
-  { text: 'Damper', color: '--part-damper', types: ['doubleWishbone'], at: (p) => p.damperUpper },
-  { text: 'Strut', color: '--part-damper', types: ['macpherson'], at: (p) => p.strutTopMount },
+  { text: () => (state.model.axle === 'rear' ? 'Toe link' : 'Tie rod'), color: '--part-tie', types: ['doubleWishbone', 'macpherson', 'multilink'], at: (p) => p.tieRodInner },
+  { text: 'Damper', color: '--part-damper', types: ['doubleWishbone', 'multilink', 'trailingArm'], at: (p) => p.damperUpper },
+  { text: 'Strut', color: '--part-damper', types: ['macpherson', 'strutLinks'], at: (p) => p.strutTopMount },
   { text: 'Upright', color: '--part-upright', types: ['doubleWishbone', 'macpherson'], at: (p) => V.add(p.lowerArmOuter, [0, 0, -40]) },
-  { text: 'Steering axis', color: '--axis', types: ['doubleWishbone', 'macpherson'], at: (p, s) => V.sub(s.axisGround, V.mul(V.unit(V.sub(s.axis[1], s.axis[0])), 60)) },
-  { text: 'Wheel', color: '--ink-2', types: ['doubleWishbone', 'macpherson'], at: (p, s) => V.add(s.wc, [state.model.wheel.radius, state.model.wheel.width / 2, 0]) },
+  { text: 'Upright', color: '--part-upright', types: ['multilink', 'strutLinks'], at: (p, s) => V.add(V.sub(s.wc, V.mul(s.spin, 60)), [0, 0, -90]) },
+  { text: 'Upper links', color: '--part-upper', types: ['multilink'], at: (p) => V.lerp(p.upperForwardLinkInner, p.upperRearwardLinkInner, 0.5) },
+  { text: 'Lower links', color: '--part-lower', types: ['multilink'], at: (p) => V.lerp(p.lowerForwardLinkInner, p.lowerRearwardLinkInner, 0.5) },
+  { text: 'Lateral links', color: '--part-lower', types: ['strutLinks'], at: (p) => V.lerp(p.forwardLinkInner, p.rearwardLinkInner, 0.5) },
+  { text: 'Trailing rod', color: '--part-upper', types: ['strutLinks'], at: (p) => p.trailingRodForward },
+  { text: 'Trailing arm', color: '--part-lower', types: ['trailingArm'], at: (p) => V.lerp(p.trailingArmPivotInboard, p.trailingArmPivotOutboard, 0.5) },
+  { text: () => (state.model.type === 'multilink' ? 'Virtual steering axis' : 'Steering axis'), color: '--axis', types: ['doubleWishbone', 'macpherson', 'multilink'], at: (p, s) => (s.axis ? V.sub(s.axisGround, V.mul(V.unit(V.sub(s.axis[1], s.axis[0])), 60)) : null) },
+  { text: 'Wheel', color: '--ink-2', types: Object.keys(E.TYPES), at: (p, s) => V.add(s.wc, [state.model.wheel.radius, state.model.wheel.width / 2, 0]) },
 ];
 for (const pt of PART_TAGS) {
-  const t = makeTag(views.main, 'part', () => (state.labels && cur && cur.left && pt.types.includes(state.model.type) ? dzv(pt.at(cur.left.points, cur.left)) : null), () => (typeof pt.text === 'function' ? pt.text() : pt.text));
+  const t = makeTag(views.main, 'part', () => { if (!(state.labels && cur && cur.left && pt.types.includes(state.model.type))) return null; const q = pt.at(cur.left.points, cur.left); return q ? dzv(q) : null; }, () => (typeof pt.text === 'function' ? pt.text() : pt.text));
   t.el.style.color = 'var(' + pt.color + ')';
   t.pushOut = true;
 }
 function placeTags() {
-  const centre = cur && cur.left ? toScreen(views.main, dzv(V.lerp(cur.left.wc, cur.left.points.lowerArmOuter, 0.5))) : null;
+  const centre = cur && cur.left ? toScreen(views.main, dzv(V.lerp(cur.left.wc, cur.left.points.lowerArmOuter || V.add(cur.left.wc, [0, -60, -150]), 0.5))) : null;
   for (const t of tags) {
     const p = t.getPos();
     if (!p || !t.view.w) { t.el.hidden = true; continue; }

@@ -70,6 +70,22 @@ def test_double_wishbone_links():
     assert all(a['corner'] == b['corner'] for a, b in pairs)
 
 
+def test_multilink_rear_links():
+    # tests/data/example-multilink-rear.csv: the prototype's export of the example rear multilink.
+    module = load_fusion()
+    points = module.read_hardpoints(os.path.join(ROOT, 'tests', 'data', 'example-multilink-rear.csv'))
+    assert len(points) == 2 * 15   # 13 hardpoints + 2 derived points, for RL and RR
+    pts = by_key(points)
+    assert pts[('RL', 'wheelCentre')]['x'] == -2400   # rear axle line, shifted back by the wheelbase
+    assert pts[('RL', 'tieRodInner')]['name'] == 'RL · Toe link · inner'
+    pairs = module.link_pairs(points)
+    # per corner: four links, the toe link and the damper
+    assert len(pairs) == 12
+    ids = {(a['id'], b['id']) for a, b in pairs}
+    assert ('lowerRearwardLinkInner', 'lowerRearwardLinkOuter') in ids
+    assert len(load_freecad()['link_pairs'](points)) == 12
+
+
 def test_fusion_converts_millimetres_to_centimetres():
     module = load_fusion()
     pts = by_key(module.read_hardpoints(CSV_PATH))

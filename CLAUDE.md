@@ -61,7 +61,7 @@ documentation, code, identifiers and comments are in English.
 - `prototype/suspension-prototype.html` is the Phase 1 clickable prototype: one HTML
   file, plain JavaScript + three.js 0.170 from jsDelivr (no build step). The engine part
   (a classic `<script>`, no DOM) is a generic 6-unknown Newton solver for the upright
-  pose, for double wishbone and MacPherson, with 66 hand-checked "engine checks" that
+  pose, for double wishbone, MacPherson and (rear) multilink, strut + lateral links and trailing arm, with 83 hand-checked "engine checks" that
   run on page load. Charts sweep heave, body roll (`rollAt`/`sweepRoll`: wheels at ∓h·tan φ,
   camber to ground, roll steer, roll centre from both contact-patch lines) and steering.
   Anti values come from the 3D path of the contact patch / wheel centre (virtual work); the
@@ -70,6 +70,11 @@ documentation, code, identifiers and comments are in English.
   Springs and anti-roll bar (`model.springs`, `springMetrics`): wheel rate = k·MR² with MR from the
   damper/strut geometry, ride rate in series with the tyre, ride frequency, spring rate for a wanted
   frequency, bar torsion G·J/L, roll stiffness (springs Kw·t²/2, bar Kθ·MRbar²·t²/arm²), per axle.
+  Suspension types live in `E.TYPES` (label, axles, axis 'real'/'virtual'/'none', two-ball `links`); new types are generic:
+  multilink = 5 link lengths, virtual steering axis from `virtualJoint` (closest approach of the link lines); strut + links =
+  strut (2) + 3 links, no steering axis; trailing arm = inboard pivot fixed (3) + outboard pivot on the axis (2), no steering axis,
+  `trailingArmLayout` (sweep, slope, arm length). With no steering axis, caster/KPI/scrub/trail are NaN and those targets are hidden.
+  Old designs get missing types from the example (`normalizeModel`). The new types' examples are rear corners.
   Variants A–D (`state.variants`, `switchVariant`, `addVariant`): whole models side by side, each with its
   own baseline and undo. The active one lives in `state.model`; `variantModel(v)` reads any of them. The
   dashed curves, Δ columns and a grey 3D ghost (`cmpCorner`) show the baseline or another variant
@@ -138,7 +143,7 @@ CAD import scripts (Python 3.13 via the `py` launcher; `python` is only the Stor
 py tests/test_cad_import.py
 ```
 The fixture `tests/data/example-hardpoints.csv` is the prototype's export of the example
-double-wishbone front corner; regenerate it if the example geometry changes.
+double-wishbone front corner; `tests/data/example-multilink-rear.csv` is the same for the rear multilink. Regenerate them if the example geometry changes.
 
 Python prototype (until it is replaced):
 ```

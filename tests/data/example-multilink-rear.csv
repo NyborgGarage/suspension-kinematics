@@ -1,0 +1,31 @@
+name,id,corner,x_mm,y_mm,z_mm
+"RL · Upper forward link · inner",upperForwardLinkInner,RL,-2310,430,420
+"RL · Upper forward link · outer",upperForwardLinkOuter,RL,-2370,640,430
+"RL · Upper rearward link · inner",upperRearwardLinkInner,RL,-2560,440,415
+"RL · Upper rearward link · outer",upperRearwardLinkOuter,RL,-2440,645,430
+"RL · Lower forward link · inner",lowerForwardLinkInner,RL,-2170,360,170
+"RL · Lower forward link · outer",lowerForwardLinkOuter,RL,-2350,670,168
+"RL · Lower rearward link · inner",lowerRearwardLinkInner,RL,-2530,330,180
+"RL · Lower rearward link · outer",lowerRearwardLinkOuter,RL,-2440,680,160
+"RL · Toe link · inner",tieRodInner,RL,-2600,340,220.8
+"RL · Toe link · outer",tieRodOuter,RL,-2530,640,210
+"RL · Wheel · centre",wheelCentre,RL,-2400,760,300
+"RL · Damper · upper mount",damperUpper,RL,-2500,600,620
+"RL · Damper · lower mount (on upright)",damperLower,RL,-2500,650,190
+"RL · Derived · steering axis at ground",steeringAxisGround,RL,-2425.926,812.175,0.046
+"RL · Derived · contact patch centre",contactPatch,RL,-2400,765.236,0.046
+"RR · Upper forward link · inner",upperForwardLinkInner,RR,-2310,-430,420
+"RR · Upper forward link · outer",upperForwardLinkOuter,RR,-2370,-640,430
+"RR · Upper rearward link · inner",upperRearwardLinkInner,RR,-2560,-440,415
+"RR · Upper rearward link · outer",upperRearwardLinkOuter,RR,-2440,-645,430
+"RR · Lower forward link · inner",lowerForwardLinkInner,RR,-2170,-360,170
+"RR · Lower forward link · outer",lowerForwardLinkOuter,RR,-2350,-670,168
+"RR · Lower rearward link · inner",lowerRearwardLinkInner,RR,-2530,-330,180
+"RR · Lower rearward link · outer",lowerRearwardLinkOuter,RR,-2440,-680,160
+"RR · Toe link · inner",tieRodInner,RR,-2600,-340,220.8
+"RR · Toe link · outer",tieRodOuter,RR,-2530,-640,210
+"RR · Wheel · centre",wheelCentre,RR,-2400,-760,300
+"RR · Damper · upper mount",damperUpper,RR,-2500,-600,620
+"RR · Damper · lower mount (on upright)",damperLower,RR,-2500,-650,190
+"RR · Derived · steering axis at ground",steeringAxisGround,RR,-2425.926,-812.175,0.046
+"RR · Derived · contact patch centre",contactPatch,RR,-2400,-765.236,0.046
