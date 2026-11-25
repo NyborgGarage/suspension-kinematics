@@ -386,6 +386,10 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
         <div class="seg small" id="viewSeg" role="group" aria-label="Camera">
           <button type="button" data-view="iso">Iso</button><button type="button" data-view="front">Front</button><button type="button" data-view="side">Side</button><button type="button" data-view="top">Top</button>
         </div>
+        <div class="seg small" id="lookSeg" role="group" aria-label="Drawing style">
+          <button type="button" data-look="diagram" title="Lines and points, one colour per part">Diagram</button><button type="button" data-look="real" title="The parts as they look on a car (double wishbone so far)">Realistic</button>
+        </div>
+        <button class="btn small" id="wheelBtn" type="button" aria-pressed="false" title="Solid tyre and rim instead of see-through" hidden>Solid wheel</button>
         <button class="btn small" id="labelsBtn" type="button" aria-pressed="true">Part labels</button>
         <button class="btn small" id="constructBtn" type="button" aria-pressed="false">Constructions</button>
       </div>
@@ -2922,6 +2926,12 @@ $('#rollIn').addEventListener('input', () => { stopPlay(); state.travel = 0; sta
 $('#homeBtn').addEventListener('click', () => { stopPlay(); state.travel = 0; state.rack = 0; state.roll = 0; poseChanged(); });
 $('#playBtn').addEventListener('click', () => { if (state.playing) stopPlay(); else startPlay(); });
 $('#labelsBtn').addEventListener('click', () => { state.labels = !state.labels; syncControls(); updateScene(); requestRender(); });
+for (const b of document.querySelectorAll('#lookSeg button')) b.addEventListener('click', () => {
+  look = b.dataset.look;
+  try { localStorage.setItem(LOOK_KEY, look); } catch (e) { /* not saved: fine */ }
+  syncControls(); updateScene(); requestRender();
+});
+$('#wheelBtn').addEventListener('click', () => { solidWheel = !solidWheel; applyWheelLook(); syncControls(); updateScene(); requestRender(); });
 $('#constructBtn').addEventListener('click', () => { state.constructions = !state.constructions; syncControls(); applyLayers(); requestRender(); });
 for (const b of document.querySelectorAll('#viewSeg button')) b.addEventListener('click', () => { frameMain(b.dataset.view); requestRender(); });
 $('#testsChip').addEventListener('click', () => { $('#testsPanel').hidden = false; $('#testsClose').focus(); });
@@ -2975,6 +2985,9 @@ function syncControls() {
   $('#revertBtn').disabled = !state.baseline;
   $('#playBtn').textContent = state.playing ? 'Stop' : 'Play';
   $('#labelsBtn').setAttribute('aria-pressed', String(state.labels));
+  for (const b of document.querySelectorAll('#lookSeg button')) b.setAttribute('aria-pressed', String(b.dataset.look === look));
+  $('#wheelBtn').hidden = !realActive();
+  $('#wheelBtn').setAttribute('aria-pressed', String(solidWheel));
   $('#constructBtn').setAttribute('aria-pressed', String(state.constructions));
   $('#steerBlock').hidden = m.axle !== 'front';
   $('#xAxisName').textContent = MODES[state.mode].axisName();
@@ -2990,6 +3003,10 @@ function updateHint() {
     h.append(b, document.createTextNode(atRide ? ' · drag an arrow (1 mm steps) or type in the table · Esc to deselect' : ' · return to ride height to drag it'));
   } else if (state.proposal) {
     h.textContent = 'Amber = Solve proposal · Apply or Discard it under Design targets';
+  } else if (look === 'real' && state.model.type !== 'doubleWishbone') {
+    h.textContent = 'The realistic view is ready for double wishbone so far, so this type is shown as a diagram';
+  } else if (realActive()) {
+    h.textContent = 'Realistic view: lower arm on rubber bushings, upper arm on uniballs · the points show through, click one to edit it';
   } else {
     h.textContent = 'Click a point to edit it · drag to orbit · right-drag to pan · scroll to zoom';
   }
@@ -3831,6 +3848,8 @@ function applyTheme() {
   set('ptChassis', '--ink'); set('ptJoint', '--ink'); set('ptSelected', '--select'); set('bad', '--bad'); set('ptBad', '--bad');
   set('tyre', '--ink-2'); set('cp', '--ink'); set('axis', '--axis'); set('grid', '--grid-3d'); set('centre', '--muted');
   set('construct', '--construct'); set('construct2d', '--construct'); set('marker', '--construct');
+  // realistic view: painted parts in the part colours
+  for (const M of [realMats, realGhost]) for (const [k, n] of [['upper', '--part-upper'], ['lower', '--part-lower'], ['damper', '--part-damper'], ['spring', '--part-damper']]) { const c = css(n); if (c) M[k].color.set(c); }
   for (const v of allViews()) v.renderer.setClearColor(css('--sheet') || '#ffffff');
   requestRender();
 }
@@ -3923,6 +3942,12 @@ class Corner {
     let mesh = this.balls.get(k);
     if (!mesh) { mesh = new THREE.Mesh(chassis ? BOX : SPH); this.group.add(mesh); this.balls.set(k, mesh); }
     mesh.material = this.m(this.bad && this.bad.has(id) && key !== 'ptSelected' ? 'ptBad' : key); mesh.position.set(p[0], p[1], p[2]); mesh.scale.setScalar(r); mesh.userData.used = true;
+    mesh.renderOrder = 10;   // drawn last, so in the realistic view the points show through the parts
+  }
+  /** Show or hide the stick drawing (bars, wire wheel), keeping the points: used under the realistic view. */
+  diagramParts(show) {
+    for (const o of this.bars.values()) o.visible = show && o.userData.used;
+    this.tyre.visible = show; this.cp.obj.visible = show;
   }
   update(s, model, sel, hov, bad) {
     this.bad = bad || null;
@@ -4003,6 +4028,196 @@ class Corner {
 }
 const left = new Corner(mat), right = new Corner(ghost), propCorner = new Corner(propMat), cmpCorner = new Corner(cmpMat);
 modelGroup.add(left.group, right.group, propCorner.group, cmpCorner.group);
+
+// ---------------------------------------------------------------- realistic view (double wishbone)
+// The same solved points, drawn as the parts look on a car: tubular arms, the lower arm on rubber
+// bushings and the upper arm on spherical bearings (uniballs), a cast upright with hub, brake disc
+// and caliper, a coilover and a tyre on a rim. Only the look changes; every number is the same.
+const CYL_SMOOTH = new THREE.CylinderGeometry(1, 1, 1, 28, 1);
+const CYL_TAPER = new THREE.CylinderGeometry(0.7, 1, 1, 24, 1);    // radius 1 at the start, 0.7 at the end
+const SPH_SMOOTH = new THREE.SphereGeometry(1, 28, 18);
+const BOX1 = new THREE.BoxGeometry(1, 1, 1);
+const TORUS = new THREE.TorusGeometry(1, 0.22, 10, 32);            // axis along Z
+const _zAxis = new THREE.Vector3(0, 0, 1);
+function realMaterials(ghost) {
+  const m = (color, metalness, roughness) => new THREE.MeshStandardMaterial(Object.assign({ color, metalness, roughness, side: THREE.DoubleSide },
+    ghost ? { transparent: true, opacity: 0.22, depthWrite: false } : {}));
+  return {
+    upper: m('#d95926', 0.3, 0.42), lower: m('#3987e5', 0.3, 0.42), tie: m('#3f454b', 0.6, 0.4), damper: m('#9085e9', 0.35, 0.4),
+    upright: m('#aab1b8', 0.55, 0.5), steel: m('#8d949b', 0.75, 0.32), chrome: m('#eef1f4', 0.9, 0.15), rubber: m('#202326', 0, 0.92),
+    bracket: m('#59606a', 0.5, 0.5), disc: m('#a7abaf', 0.8, 0.34), caliper: m('#c4372a', 0.25, 0.42), spring: m('#9085e9', 0.45, 0.3),
+    tyre: m('#26292c', 0, 0.95), rim: m('#cfd4d9', 0.75, 0.28),
+  };
+}
+const realMats = realMaterials(false), realGhost = realMaterials(true);
+/** A coil spring along local Y, `len` long. */
+class Helix extends THREE.Curve {
+  constructor(radius, len, turns) { super(); this.r = radius; this.len = len; this.turns = turns; }
+  getPoint(t, target = new THREE.Vector3()) { const a = t * this.turns * 2 * Math.PI; return target.set(this.r * Math.cos(a), this.len * t, this.r * Math.sin(a)); }
+}
+class RealCorner {
+  constructor(mats) {
+    this.m = mats; this.group = new THREE.Group(); this.meshes = new Map();
+    const fixed = (mat) => { const o = new THREE.Mesh(new THREE.BufferGeometry(), mats[mat]); o.matrixAutoUpdate = false; this.group.add(o); return o; };
+    this.tyre = fixed('tyre'); this.rim = fixed('rim'); this.spring = fixed('spring');
+    this.wheelKey = ''; this.springKey = '';
+  }
+  mesh(name, geo, mat) {
+    let o = this.meshes.get(name);
+    if (!o) { o = new THREE.Mesh(geo, this.m[mat]); this.group.add(o); this.meshes.set(name, o); }
+    o.geometry = geo; o.material = this.m[mat]; o.visible = true; o.userData.used = true;
+    return o;
+  }
+  /** Cylinder from a to b (tapered: radius r at a, 0.7 r at b). */
+  rod(name, a, b, r, mat, taper) { const o = this.mesh(name, taper ? CYL_TAPER : CYL_SMOOTH, mat); if (!placeBar(o, a, b, r)) o.visible = false; return o; }
+  /** Cylinder of length len centred on c along the unit vector d. */
+  sleeve(name, c, d, len, r, mat) { return this.rod(name, V.sub(c, V.mul(d, len / 2)), V.add(c, V.mul(d, len / 2)), r, mat); }
+  ball(name, c, r, mat) { const o = this.mesh(name, SPH_SMOOTH, mat); o.quaternion.identity(); o.position.set(c[0], c[1], c[2]); o.scale.setScalar(r); return o; }
+  ring(name, c, d, R, mat) { const o = this.mesh(name, TORUS, mat); o.position.set(c[0], c[1], c[2]); o.quaternion.setFromUnitVectors(_zAxis, _d.set(d[0], d[1], d[2])); o.scale.setScalar(R); return o; }
+  /** Box centred on c; y along the unit vector `along`, z towards `towards` (made square to y). */
+  block(name, c, along, towards, sx, sy, sz, mat) {
+    const y = V.unit(along); let z = V.sub(towards, V.mul(y, V.dot(towards, y)));
+    z = V.len(z) > 1e-6 ? V.unit(z) : V.unit(V.cross(y, Math.abs(y[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]));
+    const x = V.cross(y, z), o = this.mesh(name, BOX1, mat);
+    o.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(...x), new THREE.Vector3(...y), new THREE.Vector3(...z)));
+    o.position.set(c[0], c[1], c[2]); o.scale.set(sx, sy, sz);
+    return o;
+  }
+  /** Two bracket plates either side of a joint, reaching towards what holds it. */
+  clevis(name, c, axis, gap, towards, mat) {
+    const t = V.unit(towards);
+    for (const sg of [1, -1]) this.block(name + 'c' + sg, V.add(V.add(c, V.mul(axis, sg * (gap + 3))), V.mul(t, 16)), axis, t, 50, 6, 74, mat);
+  }
+  /** Rubber bushing: steel sleeve welded to the arm, rubber, and the bolt through the body bracket. */
+  bushing(name, c, axis, armMat) {
+    this.sleeve(name + 'o', c, axis, 54, 23, armMat);
+    this.sleeve(name + 'r', c, axis, 62, 17, 'rubber');
+    this.sleeve(name + 'b', c, axis, 98, 7, 'steel');
+    this.clevis(name, c, axis, 31, [0, 0, 1], 'bracket');
+  }
+  /** Spherical bearing (uniball): housing in the arm, the polished ball, spacers and the bolt. */
+  uniball(name, c, axis, armMat, towards, bracketMat) {
+    this.sleeve(name + 'h', c, axis, 22, 21, armMat);
+    this.ball(name + 'b', c, 15, 'chrome');
+    for (const sg of [1, -1]) this.sleeve(name + 's' + sg, V.add(c, V.mul(axis, sg * 17)), axis, 12, 9, 'chrome');
+    this.sleeve(name + 'bolt', c, axis, 84, 6, 'steel');
+    this.clevis(name, c, axis, 24, towards, bracketMat);
+  }
+  update(s, model, opts) {
+    for (const o of this.meshes.values()) o.userData.used = false;
+    const on = !!s && model.type === 'doubleWishbone';
+    this.group.visible = on;
+    if (on) this.build(s, model, opts || {});
+    for (const o of this.meshes.values()) if (!o.userData.used) o.visible = false;
+  }
+  build(s, model, opts) {
+    const p = s.points, spin = s.spin, fwd = V.unit(V.cross(spin, [0, 0, 1])), up = V.cross(fwd, spin);
+    const L = p.lowerArmOuter, U = p.upperArmOuter, W = p.wheelCentre, kp = V.unit(V.sub(U, L));
+    const env = E.wheelEnvelope(model), et = model.wheel.offset;
+    // Lower arm: two tubes from rubber bushings to the ball joint.
+    const aL = V.unit(V.sub(p.lowerArmInnerForward, p.lowerArmInnerRearward));
+    for (const [k, c] of [['f', p.lowerArmInnerForward], ['r', p.lowerArmInnerRearward]]) {
+      this.bushing('Lb' + k, c, aL, 'lower');
+      this.rod('Lt' + k, c, L, 11, 'lower');
+    }
+    this.sleeve('Lbj', V.sub(L, V.mul(kp, 6)), kp, 28, 22, 'lower');            // ball-joint housing pressed into the arm
+    this.ball('LbjBoot', V.add(L, V.mul(kp, 14)), 14, 'rubber');               // dust boot
+    // Upper arm: two tubes, uniballs at both inner pivots and at the upright.
+    const aU = V.unit(V.sub(p.upperArmInnerForward, p.upperArmInnerRearward));
+    const hubIn = V.sub(W, V.mul(spin, 95)), hubOut = V.add(W, V.mul(spin, et - 34)), hubMid = V.lerp(hubIn, hubOut, 0.3);
+    for (const [k, c] of [['f', p.upperArmInnerForward], ['r', p.upperArmInnerRearward]]) {
+      this.uniball('Ub' + k, c, aU, 'upper', [0, 0, 1], 'bracket');
+      this.rod('Ut' + k, c, U, 9, 'upper');
+    }
+    this.uniball('Uo', U, aU, 'upper', V.sub(hubMid, U), 'upright');
+    // Upright: kingpin body, arms to the hub, steering arm.
+    this.rod('kp', V.add(L, V.mul(kp, 16)), V.sub(U, V.mul(kp, 30)), 22, 'upright', true);
+    this.rod('hub', hubIn, hubOut, 46, 'upright');
+    this.rod('toHubLo', hubMid, V.add(L, V.mul(kp, 20)), 24, 'upright', true);
+    this.rod('toHubUp', hubMid, V.sub(U, V.mul(kp, 32)), 20, 'upright', true);
+    const foot = V.footOnLine(p.tieRodOuter, L, U);
+    this.rod('steerArm', V.lerp(foot, hubMid, 0.3), p.tieRodOuter, 16, 'upright', true);
+    // Hub flange with studs, brake disc on its hat, caliper behind the axle.
+    const flange = V.add(W, V.mul(spin, et - 6));
+    this.sleeve('flange', flange, spin, 12, 62, 'steel');
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * 2 * Math.PI, rdir = V.add(V.mul(fwd, Math.cos(a)), V.mul(up, Math.sin(a)));
+      this.sleeve('stud' + i, V.add(V.add(flange, V.mul(rdir, 50)), V.mul(spin, 14)), spin, 30, 6, 'chrome');
+    }
+    const discR = Math.max(90, env.barrelR - 28), discC = V.add(W, V.mul(spin, et - 34));
+    this.sleeve('disc', discC, spin, 24, discR, 'disc');
+    this.rod('hat', discC, flange, 74, 'disc');
+    const cdir = V.unit(V.add(V.mul(fwd, -Math.cos(0.35)), V.mul(up, Math.sin(0.35))));
+    this.block('caliper', V.add(discC, V.mul(cdir, discR - 22)), spin, cdir, 118, 64, 46, 'caliper');
+    // Tie rod (toe link on the rear) with its joints; on the front a rack boot and the rack housing.
+    const ti = p.tieRodInner, to = p.tieRodOuter, dT = V.unit(V.sub(to, ti));
+    this.rod('tie', V.add(ti, V.mul(dT, 18)), V.sub(to, V.mul(dT, 34)), 9, 'tie');
+    this.rod('tieEnd', V.sub(to, V.mul(dT, 52)), to, 13, 'steel');
+    this.ball('tieOut', to, 17, 'steel');
+    this.ball('tieIn', ti, 15, 'steel');
+    if (model.axle === 'front') {
+      for (let i = 0; i < 6; i++) this.ring('boot' + i, V.add(ti, V.mul(dT, -12 - i * 11)), dT, 21 - i * 0.8, 'rubber');
+      this.rod('rack', [ti[0], ti[1] - 75, ti[2]], [ti[0], Math.max(0, ti[1] - 260), ti[2]], 22, 'bracket');
+    } else this.clevis('tieInC', ti, aL, 20, [0, 0, 1], 'bracket');
+    // Coilover: damper body, chrome shaft, eye bushing on the lower arm, top mount, spring between its perches.
+    const dU = s.damper[0], dL = s.damper[1], dAx = V.unit(V.sub(dU, dL)), dLen = V.dist(dU, dL);
+    const bodyTop = V.add(dL, V.mul(dAx, dLen * 0.56));
+    this.rod('dBody', V.add(dL, V.mul(dAx, 18)), bodyTop, 23, 'damper');
+    this.rod('dShaft', bodyTop, V.sub(dU, V.mul(dAx, 8)), 8, 'chrome');
+    this.sleeve('dEye', dL, aL, 42, 15, 'steel');
+    this.sleeve('dEyeR', dL, aL, 46, 9, 'rubber');
+    for (const [k, a, b] of [['f', p.lowerArmInnerForward, L], ['r', p.lowerArmInnerRearward, L]]) this.rod('dTab' + k, dL, V.footOnLine(dL, a, b), 8, 'lower');
+    this.sleeve('dTop', dU, dAx, 14, 40, 'rubber');
+    this.sleeve('dTopPlate', V.add(dU, V.mul(dAx, 10)), dAx, 6, 56, 'bracket');
+    const perchLo = V.add(dL, V.mul(dAx, dLen * 0.3)), perchHi = V.sub(dU, V.mul(dAx, 22));
+    this.sleeve('perchLo', perchLo, dAx, 6, 54, 'steel');
+    this.sleeve('perchHi', perchHi, dAx, 6, 54, 'steel');
+    const sLen = Math.max(20, V.dist(perchLo, perchHi) - 6), key = Math.round(sLen);
+    if (key !== this.springKey) { this.spring.geometry.dispose(); this.spring.geometry = new THREE.TubeGeometry(new Helix(46, sLen, 6.5), 230, 6.5, 10, false); this.springKey = key; }
+    const e1 = V.unit(V.cross(dAx, Math.abs(dAx[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = V.cross(e1, dAx), s0 = V.add(perchLo, V.mul(dAx, 3));
+    this.spring.matrix.makeBasis(new THREE.Vector3(...e1), new THREE.Vector3(...dAx), new THREE.Vector3(...e2)).setPosition(s0[0], s0[1], s0[2]);
+    this.spring.matrixWorldNeedsUpdate = true;
+    // Wheel: tyre and rim turned about the spin axis, and five spokes out to the barrel.
+    const wkey = [model.wheel.radius, model.wheel.width, model.wheel.rimDiameter, model.wheel.rimWidth, model.wheel.rimWall].join('/');
+    if (wkey !== this.wheelKey) {
+      const R = model.wheel.radius, th = env.tyreHalf, rr = Math.min(28, th * 0.4, (R - env.flangeR) * 0.45), prof = [];
+      // tyre section: sidewall, rounded shoulder, tread, shoulder, sidewall
+      prof.push(new THREE.Vector2(env.flangeR - 6, -th * 0.86));
+      for (let i = 0; i <= 8; i++) { const a = i / 8 * Math.PI / 2; prof.push(new THREE.Vector2(R - rr + rr * Math.sin(a), -th + rr - rr * Math.cos(a))); }
+      for (let i = 0; i <= 8; i++) { const a = i / 8 * Math.PI / 2; prof.push(new THREE.Vector2(R - rr + rr * Math.cos(a), th - rr + rr * Math.sin(a))); }
+      prof.push(new THREE.Vector2(env.flangeR - 6, th * 0.86));
+      this.tyre.geometry.dispose(); this.tyre.geometry = new THREE.LatheGeometry(prof, 72);
+      const rim = [[env.flangeR - 4, -env.rimHalf], [env.rimR, -env.rimHalf + 12], [env.barrelR + 4, -env.rimHalf + 22], [env.barrelR + 4, env.rimHalf - 22], [env.rimR, env.rimHalf - 12], [env.flangeR - 4, env.rimHalf]];
+      this.rim.geometry.dispose(); this.rim.geometry = new THREE.LatheGeometry(rim.map(([r, y]) => new THREE.Vector2(r, y)), 72);
+      this.wheelKey = wkey;
+    }
+    for (const o of [this.tyre, this.rim]) {
+      o.matrix.makeBasis(new THREE.Vector3(...fwd), new THREE.Vector3(...spin), new THREE.Vector3(...up)).setPosition(W[0], W[1], W[2]);
+      o.matrixWorldNeedsUpdate = true;
+    }
+    if (!opts.spokes) return;   // see-through wheel: leave out the wheel face, it would hide the hub and upright
+    const face = V.add(W, V.mul(spin, et + 2));
+    this.sleeve('rimCentre', face, spin, 16, 68, 'rim');
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5 + 0.1) * 2 * Math.PI, rdir = V.add(V.mul(fwd, Math.cos(a)), V.mul(up, Math.sin(a)));
+      this.block('spoke' + i, V.add(face, V.mul(rdir, (60 + env.barrelR) / 2)), spin, rdir, 30, 16, env.barrelR - 56, 'rim');
+    }
+  }
+}
+const realL = new RealCorner(realMats), realR = new RealCorner(realGhost);
+modelGroup.add(realL.group, realR.group);
+// Light for the realistic parts (the diagram uses unlit colours and ignores it).
+scene.add(new THREE.HemisphereLight(0xffffff, 0x2a2e33, 1.6));
+{ const sun = new THREE.DirectionalLight(0xffffff, 2.4); sun.position.set(1, 0.8, 2); scene.add(sun); const fill = new THREE.DirectionalLight(0xffffff, 0.9); fill.position.set(-1, -0.6, 0.4); scene.add(fill); }
+const LOOK_KEY = 'suspension-kinematics-prototype/look';
+let look = 'diagram', solidWheel = false;
+try { look = localStorage.getItem(LOOK_KEY) === 'real' ? 'real' : 'diagram'; } catch (e) { /* storage unavailable */ }
+const realActive = () => look === 'real' && state.model.type === 'doubleWishbone';
+/** See-through wheel (default) so the suspension inside it stays visible, or solid. */
+function applyWheelLook() {
+  for (const k of ['tyre', 'rim']) { const m = realMats[k]; m.transparent = !solidWheel; m.opacity = solidWheel ? 1 : k === 'tyre' ? 0.3 : 0.38; m.depthWrite = solidWheel; m.needsUpdate = true; }
+}
+applyWheelLook();
 let cmpPose = { key: '', sample: null };
 /** The compared variant's left corner at the current travel and rack (same axle, no body roll), or null. */
 function compareSample() {
@@ -4083,6 +4298,13 @@ function updateScene() {
   propCorner.update(showProp ? state.proposal.sample : null, showProp ? state.proposal.model : state.model, null, null);
   const cs = compareSample();
   cmpCorner.update(cs ? cs.sample : null, cs ? cs.model : state.model, null, null);
+  // Realistic view: solid parts instead of sticks; the points stay visible (drawn on top) for editing.
+  const real = realActive();
+  realL.update(real ? l : null, state.model, { spokes: solidWheel });
+  realR.update(real ? r : null, state.model, { spokes: false });
+  left.diagramParts(!real);
+  if (real) right.group.visible = false;
+  for (const k of ['ptChassis', 'ptJoint', 'ptSelected', 'ptBad']) if (mat[k].depthTest === real) { mat[k].depthTest = !real; mat[k].needsUpdate = true; }
   // Ground-fixed view: the body moves and rolls, the tyres stay on the ground.
   const phi = cur && cur.roll ? state.roll * Math.PI / 180 : 0;
   modelGroup.rotation.x = phi;

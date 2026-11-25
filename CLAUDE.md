@@ -78,6 +78,10 @@ documentation, code, identifiers and comments are in English.
   "Solve every type" (`startSolveAll`): the variant's ticked targets (`ticked`) solved with `createTargetSolver` for each type
   allowed on the axle, from that type's own points and locks (`freeCoordsFor`); axis targets are n/a for types without a
   steering axis. Results table `renderSolveAll`; `variantFromSolve` opens a result as a new variant. Moves > 100 mm are flagged.
+  Realistic view (`look`, `RealCorner`, lit MeshStandardMaterial, saved under `LOOK_KEY`): double wishbone only so far.
+  Lower arm on rubber bushings, upper arm on uniballs, upright/hub/disc/caliper, coilover (spring tube rebuilt by length),
+  lathe tyre and rim (see-through unless `solidWheel`). The diagram's points stay on top (depthTest off) for editing.
+  Caliper and disc are drawn only; the packaging check does not include them.
   Variants A–D (`state.variants`, `switchVariant`, `addVariant`): whole models side by side, each with its
   own baseline and undo. The active one lives in `state.model`; `variantModel(v)` reads any of them. The
   dashed curves, Δ columns and a grey 3D ghost (`cmpCorner`) show the baseline or another variant

@@ -371,6 +371,8 @@ which give you the classic 2D diagrams for free.
   the steering axis, its ground intercept, the contact patch, and a dimension
   line between them. That is great for teaching.
 
+**Realistic view (2026-11-25).** A second drawing style for teaching, next to the diagram: the same solved points drawn as real parts (tubular arms, rubber bushings or uniballs, cast upright, hub, brake disc and caliper, coilover, tyre on a rim). It is a button in the 3D view, not a separate app, so variants, Solve and share links all work in it. Double wishbone first; the other types and guided lessons follow.
+
 ### 5.3 Editing directly in 3D
 
 - Click a hardpoint to get a gizmo with X/Y/Z arrows. Drag along one axis, or

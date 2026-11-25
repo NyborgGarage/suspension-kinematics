@@ -19,6 +19,9 @@ a browser (double-click it). It needs an internet connection to load three.js.
 - Double wishbone or MacPherson on either axle. On the rear axle also multilink (five links,
   virtual steering axis), strut with two lateral links and a trailing rod, and trailing arm
   (pure trailing arm, or semi-trailing when the pivot axis is swept).
+- Diagram or Realistic drawing (button above the 3D view). Realistic shows a double wishbone as
+  the parts look on a car: lower arm on rubber bushings, upper arm on uniballs, cast upright with
+  hub, brake disc and caliper, coilover and a see-through (or solid) wheel. The numbers are the same.
 - Isometric, front and side views. Click a point, drag the arrows, or type values.
 - Wheel-travel, body-roll and rack sliders; Play animates bump and droop.
 - Charts in heave, roll (camber to ground, roll steer, roll-centre height and sideways
