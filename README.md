@@ -34,7 +34,15 @@ a browser (double-click it). It needs an internet connection to load three.js.
 - Springs and anti-roll bar: spring rate, sprung corner mass, tyre rate and bar size give wheel
   rate, ride rate, ride frequency (and the spring for a wanted frequency), and roll stiffness from
   springs and bar. Wheel rate and ride frequency can be charted through travel.
-- 60 engine checks run on load and compare the solver with values worked out by hand.
+- Variants (A, B, C, D in the top bar) are whole designs side by side, for example MacPherson
+  against double wishbone, or before and after. **+ Copy** makes a new variant from the one you
+  have. The selector above the charts makes the dashed curves (and a grey ghost in 3D) show
+  another variant. **Compare variants** lists them all and checks each against the design
+  targets of the variant you are editing: the same target set for every layout.
+- Whole car in roll: with a front-axle and a rear-axle variant, the app gives the roll axis
+  height under the CG, the roll angle per g, and the front share of roll stiffness and of
+  lateral load transfer.
+- 66 engine checks run on load and compare the solver with values worked out by hand.
 
 - Room inside the wheel: rim width, offset (ET) and rim wall define the wheel. Ball joints,
   arms, tie rods and the strut are checked against rim, tyre and hub face at full bump and
@@ -42,8 +50,8 @@ a browser (double-click it). It needs an internet connection to load three.js.
 
 Your edits are saved in the browser you use (local storage). Under **Save, open and share**:
 
-- **Save design** downloads a `.json` file with everything (both suspension types, wheel,
-  vehicle, sweep, locks and targets). **Open design** loads it again.
+- **Save design** downloads a `.json` file with everything (all variants, both suspension types,
+  wheel, vehicle, springs, sweep, locks and targets). **Open design** loads it again.
 - **Copy share link** copies a link that opens exactly this design. The design travels inside
   the link (after `#`), so nothing is stored on a server. The person opening it keeps their own
   design one Undo away.

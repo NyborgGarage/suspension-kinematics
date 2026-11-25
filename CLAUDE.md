@@ -61,7 +61,7 @@ documentation, code, identifiers and comments are in English.
 - `prototype/suspension-prototype.html` is the Phase 1 clickable prototype: one HTML
   file, plain JavaScript + three.js 0.170 from jsDelivr (no build step). The engine part
   (a classic `<script>`, no DOM) is a generic 6-unknown Newton solver for the upright
-  pose, for double wishbone and MacPherson, with 60 hand-checked "engine checks" that
+  pose, for double wishbone and MacPherson, with 66 hand-checked "engine checks" that
   run on page load. Charts sweep heave, body roll (`rollAt`/`sweepRoll`: wheels at ∓h·tan φ,
   camber to ground, roll steer, roll centre from both contact-patch lines) and steering.
   Anti values come from the 3D path of the contact patch / wheel centre (virtual work); the
@@ -69,7 +69,16 @@ documentation, code, identifiers and comments are in English.
   They differ when ball joints sit off the pivot lines in side view (example DW: 36 % vs 51 %).
   Springs and anti-roll bar (`model.springs`, `springMetrics`): wheel rate = k·MR² with MR from the
   damper/strut geometry, ride rate in series with the tyre, ride frequency, spring rate for a wanted
-  frequency, bar torsion G·J/L, roll stiffness (springs Kw·t²/2, bar Kθ·MRbar²·t²/arm²). Per axle only.
+  frequency, bar torsion G·J/L, roll stiffness (springs Kw·t²/2, bar Kθ·MRbar²·t²/arm²), per axle.
+  Variants A–D (`state.variants`, `switchVariant`, `addVariant`): whole models side by side, each with its
+  own baseline and undo. The active one lives in `state.model`; `variantModel(v)` reads any of them. The
+  dashed curves, Δ columns and a grey 3D ghost (`cmpCorner`) show the baseline or another variant
+  (`state.compare`, `refSnap`). "Compare variants" tabulates all of them, checked against the active
+  variant's targets (`designMetrics` + `targetMet`). "Whole car in roll" combines a front and a rear variant
+  (`carRoll`: roll axis under the CG, roll gradient °/g, front share of roll stiffness and of lateral load
+  transfer, sprung mass only). Variants are saved in localStorage (`VARIANTS_KEY`), in the design file
+  (`variants`, `active`; `model` stays the active one) and in share links; opening several replaces the set,
+  with "Bring back my variants" (`state.prevSet`).
   Changing the loaded tyre radius shifts all hardpoints and the CG by Δr (`changeTyreRadius`).
   A mm/inch switch converts display only (also N/mm→lb/in, kg→lb, N·m/°→lb·ft/°) (`disp`, `Lv`, `toMm` in the UI); the model stays in mm.
   Styling: original calm dark palette (IBM Plex) with the Nyborg Garage logo and black

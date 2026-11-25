@@ -628,6 +628,13 @@ deflate-compressed and base64url-encoded, after `#design=` in the site URL (abou
 such a link replaces the design shown, keeps the old one one Undo away, and removes the
 code from the address bar.
 
+**Variants (2026-11-25).** Up to four whole designs (A–D) side by side, each with its own
+baseline and undo history. With more than one, the design file adds `variants: [{ name, model }]`
+and `active` (the `model` field stays the active variant, so a one-model reader still opens it),
+and the share link carries all of them (about 900 characters for three). Opening a file or link
+with several variants replaces the set, and *Bring back my variants* undoes that; a one-model
+file or link opens into the variant being edited, as before.
+
 The plan below (JSON, User Parameters, export back to the app) is still the goal.
 
 - **Import into Fusion:** read the app's JSON and create, per corner, a component
@@ -816,10 +823,10 @@ Each phase ends with something you can use and test yourself.
 | 2 | **Engine** (separate TypeScript package): port the prototype engine, add closed-form double wishbone, all §4.3 metrics, Vitest tests (the prototype's engine checks and the MR2 consistency checks) | Tests pass. Curves cross-checked with one other tool. Needs Node.js installed. |
 | 3 | **Analysis app:** model tree + properties tables + 3D editing in sync (§5.6), live graphs, ghost, variants A/B, orthographic views with lenses, JSON/CSV import/export, share-by-link | You can enter any measured car and see bump steer change live while dragging the outer tie-rod |
 | 4 | **Lock & solve:** locks and targets, minimum-change solver, ghost Apply/Discard, DOF status, sensitivity arrows | "How far must the outer tie-rod move for zero bump steer?" is answered with one click. **First version in the prototype (2026-11-23):** see "Lock & solve in the prototype" below this table. |
-| 5 | **Design cascade** (§6) and **MacPherson vs. double wishbone comparison** against the same targets | One target set (for example the MR2 example) solved for both types, compared side by side |
+| 5 | **Design cascade** (§6) and **MacPherson vs. double wishbone comparison** against the same targets | One target set (for example the MR2 example) solved for both types, compared side by side. **Started in the prototype (2026-11-25):** variants A–D are compared in one table, each checked against the active variant's targets, with dashed curves and a grey 3D ghost for the variant compared with. Solving one target set for both types in one go is still to do. |
 | 6 | **Fusion bridge** (import/export add-in) | A round trip Fusion → app → Fusion gives identical points |
 | 7 | **Measuring helpers** (§8.5): datum choice, triangulation, alignment cross-check | – |
-| 8 | Axle level (roll, both sides, ARB), then multilink | **Started in the prototype (2026-11-25):** body roll sweep, and per-axle springs and bar: wheel rate k·MR², ride rate with the tyre in series, ride frequency, spring for a wanted frequency, bar torsion G·πD⁴/32/L (arms taken as stiff), roll stiffness Kw·t²/2 + Kθ·MRbar²·t²/arm². Roll angle per g needs both axles (later, with variants). |
+| 8 | Axle level (roll, both sides, ARB), then multilink | **Started in the prototype (2026-11-25):** body roll sweep, and per-axle springs and bar: wheel rate k·MR², ride rate with the tyre in series, ride frequency, spring for a wanted frequency, bar torsion G·πD⁴/32/L (arms taken as stiff), roll stiffness Kw·t²/2 + Kθ·MRbar²·t²/arm². Whole car from a front and a rear variant: roll axis under the CG, roll gradient m·g·d/(K_f + K_r) in °/g, front share of roll stiffness and of lateral load transfer (elastic + geometric, sprung mass only). |
 | 9 | **Community library** | – |
 
 ### Lock & solve in the prototype
