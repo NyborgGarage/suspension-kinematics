@@ -31,18 +31,23 @@ a browser (double-click it). It needs an internet connection to load three.js.
   Discard it.
 - Steering layout: one button moves the rack (or toe link) between behind and in front
   of the axle, and shows arm angle, the arm angle for 100 % Ackermann, rack length and height.
-- 36 engine checks run on load and compare the solver with values worked out by hand.
+- 52 engine checks run on load and compare the solver with values worked out by hand.
 
 - Room inside the wheel: rim width, offset (ET) and rim wall define the wheel. Ball joints,
   arms, tie rods and the strut are checked against rim, tyre and hub face at full bump and
   droop combined with full lock. Parts that are too close turn red, and Solve can clear them.
 
-Your edits are saved in the browser you use (local storage).
+Your edits are saved in the browser you use (local storage). Under **Save, open and share**:
+
+- **Save design** downloads a `.json` file with everything (both suspension types, wheel,
+  vehicle, sweep, locks and targets). **Open design** loads it again.
+- **Copy share link** copies a link that opens exactly this design. The design travels inside
+  the link (after `#`), so nothing is stored on a server. The person opening it keeps their own
+  design one Undo away.
 
 ## From the prototype into CAD
-1. In the prototype, use **Export for CAD**. **Copy CSV**, paste into Notepad and save as
-   `hardpoints.csv`. When the page is opened from your PC, **Download CSV** saves the file
-   directly.
+1. In the prototype, use **CAD exchange**. **Download CSV** saves the file (in the claude.ai
+   preview: **Copy CSV**, paste into Notepad and save as `hardpoints.csv`).
 2. **Fusion:** Utilities > Add-Ins > Scripts and Add-Ins, Scripts tab, green **+**, choose the
    folder `cad/fusion/ImportHardpoints`. Select **ImportHardpoints**, **Run**, pick the CSV.
    You get a sketch with points and link lines, and named construction points. Use a Z-up
@@ -50,6 +55,10 @@ Your edits are saved in the browser you use (local storage).
 3. **FreeCAD:** Macro > Macros..., set the macro location to `cad/freecad` (or copy the file
    to your macro folder), select **ImportHardpoints.FCMacro**, **Execute**, pick the CSV.
    You get named vertices and link lines that follow the vertices.
+
+**Back from Fusion:** move the sketch points, then run **ExportHardpoints** (folder
+`cad/fusion/ExportHardpoints`, installed the same way). In the prototype, **Import CSV** reads
+the file. The design before the import becomes the baseline, so the charts show before and after.
 
 The CSV columns are `name,id,corner,x_mm,y_mm,z_mm` (ISO 8855, mm, X from the front axle
 line). Test the scripts' CSV handling with `py tests/test_cad_import.py`.

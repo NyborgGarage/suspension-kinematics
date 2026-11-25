@@ -61,7 +61,7 @@ documentation, code, identifiers and comments are in English.
 - `prototype/suspension-prototype.html` is the Phase 1 clickable prototype: one HTML
   file, plain JavaScript + three.js 0.170 from jsDelivr (no build step). The engine part
   (a classic `<script>`, no DOM) is a generic 6-unknown Newton solver for the upright
-  pose, for double wishbone and MacPherson, with 48 hand-checked "engine checks" that
+  pose, for double wishbone and MacPherson, with 52 hand-checked "engine checks" that
   run on page load. Charts sweep heave, body roll (`rollAt`/`sweepRoll`: wheels at ∓h·tan φ,
   camber to ground, roll steer, roll centre from both contact-patch lines) and steering.
   Anti values come from the 3D path of the contact patch / wheel centre (virtual work); the
@@ -72,9 +72,13 @@ documentation, code, identifiers and comments are in English.
   background; the user found the full brand palette too intense. A "Steering layout" panel switches the rack between behind and in
   front of the axle (`flipSteering`: mirrors the arm through the steering axis in plan view).
   "Room inside the wheel" checks joints and links against rim, tyre and hub face over full
-  travel × full lock (`packagingCheck`), and is also a Solve target. "Export for CAD" writes
+  travel × full lock (`packagingCheck`), and is also a Solve target. "CAD exchange" writes
   a CSV (`hardpointsCsv`) that `cad/fusion/ImportHardpoints` (Fusion script) and
-  `cad/freecad/ImportHardpoints.FCMacro` read; both are tested only outside Fusion/FreeCAD. It also has a first lock & solve: design targets (value or range,
+  `cad/freecad/ImportHardpoints.FCMacro` read, and imports one (`hardpointsFromCsv`), e.g. from
+  `cad/fusion/ExportHardpoints`; the scripts are tested only outside Fusion/FreeCAD.
+  "Save, open and share": JSON design file (`designFile`/`modelFromDesign`) and share links
+  with the model deflated + base64url after `#design=` (`encodeDesign`, `openFromHash`). Downloads
+  are replaced by copying inside the sandboxed claude.ai preview (`canDownload`). It also has a first lock & solve: design targets (value or range,
   incl. Ackermann and inner lock angle), padlocks per point and per coordinate, a
   Levenberg–Marquardt minimum-change solver (`createTargetSolver`), and an amber proposal
   in 3D and in the charts with Apply/Discard (details in the concept doc under the roadmap). Published privately at https://claude.ai/artifact/TsPcmyuc426vhA9SsudaEa

@@ -165,6 +165,8 @@ svg.triad { position: absolute; left: 4px; bottom: 4px; width: 70px; height: 70p
 .tag.part { text-transform: uppercase; font-weight: 600; }
 .hover-label { position: absolute; left: 0; top: 0; z-index: 4; padding: 5px 8px; border-radius: 4px; background: var(--ink); color: var(--sheet); font-size: 12px; pointer-events: none; white-space: nowrap; }
 .hover-label small { display: block; font: 11px var(--font-data); opacity: 0.8; }
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; max-width: min(560px, calc(100vw - 32px)); padding: 10px 14px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet); color: var(--ink); font-size: 13px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); }
+.toast[hidden] { display: none; }
 .load-error { position: absolute; inset: 40% 10% auto; padding: 12px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet); color: var(--bad); text-align: center; }
 .transport { grid-area: transport; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 12px; border-top: 1px solid var(--rule); }
 .slider { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; min-width: 0; }
@@ -330,17 +332,31 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
     <section class="block"><h2>Vehicle</h2><div class="params" id="paramsVehicle"></div><p class="note" style="margin:8px 0 0">Used for anti-dive, anti-squat and anti-lift. Brakes are outboard; on the rear axle the diff is chassis-mounted.</p></section>
     <section class="block"><h2>Sweep</h2><div class="params" id="paramsSweep"></div></section>
     <section class="block">
-      <h2>Export for CAD</h2>
-      <p class="note">CSV with both corners plus the steering-axis ground point and contact patch. Millimetres, ISO 8855: X from the front axle line (rear-axle points shifted back by the wheelbase), Y left, Z up. Import it with <b>cad/fusion/ImportHardpoints</b> (Fusion) or <b>cad/freecad/ImportHardpoints.FCMacro</b> (FreeCAD) from the project folder.</p>
+      <h2>CAD exchange (CSV)</h2>
+      <p class="note">CSV with both corners plus the steering-axis ground point and contact patch. Millimetres, ISO 8855: X from the front axle line (rear-axle points shifted back by the wheelbase), Y left, Z up. Import it with <b>cad/fusion/ImportHardpoints</b> (Fusion) or <b>cad/freecad/ImportHardpoints.FCMacro</b> (FreeCAD) from the project folder. <b>Import CSV</b> reads points back, for example from <b>cad/fusion/ExportHardpoints</b> after you moved them in Fusion.</p>
       <div class="solve-bar">
         <button class="btn" id="copyCsvBtn" type="button">Copy CSV</button>
         <button class="btn" id="downloadCsvBtn" type="button" hidden>Download CSV</button>
         <button class="btn" id="showCsvBtn" type="button" aria-expanded="false" aria-controls="csvText">Show CSV</button>
+        <button class="btn" id="importCsvBtn" type="button">Import CSV…</button>
+        <input type="file" id="importCsvFile" accept=".csv,text/csv,text/plain" hidden>
       </div>
       <p class="solve-status" id="csvStatus"></p>
       <textarea id="csvText" class="csv" readonly hidden rows="12" aria-label="Hardpoints as CSV"></textarea>
     </section>
-    <section class="block"><button class="btn" id="resetBtn" type="button">Load example geometry</button></section>
+    <section class="block">
+      <h2>Save, open and share</h2>
+      <p class="note">A design file holds everything: both suspension types, wheel, vehicle, sweep, locks and design targets. A share link holds the same, so whoever opens it sees exactly this design.</p>
+      <div class="solve-bar">
+        <button class="btn" id="saveDesignBtn" type="button">Save design</button>
+        <button class="btn" id="openDesignBtn" type="button">Open design…</button>
+        <input type="file" id="openDesignFile" accept=".json,application/json,text/plain" hidden>
+        <button class="btn" id="shareBtn" type="button">Copy share link</button>
+      </div>
+      <p class="solve-status" id="designStatus" role="status"></p>
+      <textarea id="designText" class="csv" readonly hidden rows="6" aria-label="Design or share link to copy"></textarea>
+      <div class="solve-bar"><button class="btn" id="resetBtn" type="button">Load example geometry</button></div>
+    </section>
   </aside>
 
   <section class="card views" aria-label="3D views">
@@ -354,6 +370,7 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
         <button class="btn small" id="constructBtn" type="button" aria-pressed="false">Constructions</button>
       </div>
       <p class="hint" id="hint"></p>
+      <div class="toast" id="toast" role="status" hidden></div>
       <div class="load-error" id="loadError" hidden>The 3D library could not load. Check the internet connection and reload the page.</div>
     </div>
     <div class="view" id="viewFront"><div class="view-title"><b>Front view</b> · <span id="frontTitle"></span></div></div>
@@ -418,6 +435,7 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
         <li>Blue curve = current design. Dashed grey = baseline. Set a baseline, change something, and compare. The baseline is kept when you switch between double wishbone and MacPherson.</li>
         <li>Heave, Roll, Steering (above the charts) choose what the charts sweep. Roll rolls the body at ride height (+ = left side up, as in a left-hand corner) and shows camber to the ground, roll steer and how the roll centre moves up, down and sideways. The Body roll slider shows the same in 3D.</li>
         <li>mm / inch switches every length shown. The model and the CSV export stay in millimetres.</li>
+        <li>Save design, Open design and Copy share link are at the bottom of the inputs. A share link carries the whole design, so whoever opens it sees exactly what you see.</li>
         <li>Front view: instant centre (IC) and roll centre (RC). Side view: dotted lines run through the inner pivots of each arm (textbook 2D method) to <b>SVIC 2D</b>; the ring marks the exact <b>SVIC</b> from the real 3D path of the contact patch, which the anti values use. They agree only when the ball joints lie on the pivot lines and the upright does not also turn in front view.</li>
         <li>Red dash-dot line = steering axis. On a MacPherson strut it runs from the top mount to the lower ball joint.</li>
         <li>ISO 8855 axes. Negative camber = top of the wheel leans in. Toe-in is positive.</li>
@@ -1128,6 +1146,79 @@ window.SuspensionEngine = (function () {
     for (const r of hardpointRows(model)) lines.push('"' + r.name.replace(/"/g, '""') + '",' + r.id + ',' + r.corner + ',' + f(r.x) + ',' + f(r.y) + ',' + f(r.z));
     return lines.join('\r\n') + '\r\n';
   }
+  /** Split CSV text into rows of fields. Handles quotes, a BOM, CRLF and ";" files (with decimal commas). */
+  function splitCsv(text) {
+    text = String(text).replace(/^﻿/, '');
+    const first = text.split(/\r?\n/, 1)[0] || '';
+    const delim = first.includes(';') && !first.includes(',') ? ';' : ',';
+    const rows = []; let row = [], field = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+        else if (c === '"') quoted = false;
+        else field += c;
+      } else if (c === '"') quoted = true;
+      else if (c === delim) { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return { rows: rows.filter((r) => r.some((f) => f.trim() !== '')), delim };
+  }
+  /**
+   * Read a hardpoints CSV (the format written by hardpointsCsv, or by the Fusion export script)
+   * back into one LEFT corner in this app's axle-local frame. Points are found by their id, or
+   * by their full name ("FL · Lower arm · inner forward") when the id column is empty. If the
+   * file has only the right side, it is mirrored. Rear-axle files are shifted forward by the
+   * wheelbase, undoing the export. Points not in the file are listed in `missing` and left alone.
+   * Returns { type, axle, corner, mirrored, points: { id: [x, y, z] }, missing, skipped } or { error }.
+   */
+  function hardpointsFromCsv(text, opts = {}) {
+    const { rows, delim } = splitCsv(text);
+    if (!rows.length) return { error: 'The file is empty.' };
+    const head = rows[0].map((h) => h.trim().toLowerCase());
+    const col = (n) => head.indexOf(n);
+    const ci = { name: col('name'), id: col('id'), corner: col('corner'), x: col('x_mm'), y: col('y_mm'), z: col('z_mm') };
+    if (ci.x < 0 || ci.y < 0 || ci.z < 0 || (ci.id < 0 && ci.name < 0)) return { error: 'Not a hardpoints CSV: it needs the columns name or id, and x_mm, y_mm, z_mm.' };
+    const byName = new Map();
+    for (const type of Object.keys(POINTS)) for (const axle of ['front', 'rear']) for (const side of ['left', 'right']) for (const def of POINTS[type]) {
+      const n = pointName(axle, side, def);
+      byName.set(n.full.toLowerCase(), { id: def.id, corner: n.corner });
+    }
+    const allIds = new Set(Object.values(POINTS).flat().map((d) => d.id));
+    const num = (s) => { const t = String(s == null ? '' : s).trim(); return t === '' ? NaN : Number(delim === ';' ? t.replace(',', '.') : t); };
+    const found = [], skipped = [];
+    for (const r of rows.slice(1)) {
+      const name = ci.name >= 0 ? (r[ci.name] || '').trim() : '';
+      let id = ci.id >= 0 ? (r[ci.id] || '').trim() : '';
+      let corner = ci.corner >= 0 ? (r[ci.corner] || '').trim().toUpperCase() : '';
+      const hit = byName.get(name.toLowerCase().replace(/\s*[·|:-]\s*/g, ' · '));
+      if (!allIds.has(id) && hit) id = hit.id;
+      if (!corner && hit) corner = hit.corner;
+      if (!corner) { const m = name.match(/^\s*([FR][LR])\b/i); if (m) corner = m[1].toUpperCase(); }
+      const p = [num(r[ci.x]), num(r[ci.y]), num(r[ci.z])];
+      if (!allIds.has(id) || !/^[FR][LR]$/.test(corner) || !p.every(Number.isFinite)) { skipped.push(name || id || '(row ' + (found.length + skipped.length + 2) + ')'); continue; }
+      found.push({ id, corner, p });
+    }
+    if (!found.length) return { error: 'No known hardpoints in the file.', skipped };
+    const axles = new Set(found.map((f) => f.corner[0]));
+    if (axles.size > 1) return { error: 'The file has points for both axles. Export one axle at a time.' };
+    const axle = axles.has('R') ? 'rear' : 'front';
+    const ids = new Set(found.map((f) => f.id));
+    const score = (t) => POINTS[t].filter((d) => ids.has(d.id)).length - found.filter((f) => !POINTS[t].some((d) => d.id === f.id)).length;
+    const types = Object.keys(POINTS).sort((a, b) => score(b) - score(a));
+    const type = score(types[0]) === score(types[1]) && opts.type ? opts.type : types[0];
+    const left = found.filter((f) => f.corner[1] === 'L'), use = left.length ? left : found;
+    const mirrored = !left.length, dx = axle === 'rear' ? (opts.wheelbase || 0) : 0;
+    const points = {};
+    for (const f of use) {
+      if (!POINTS[type].some((d) => d.id === f.id)) { skipped.push(f.corner + ' ' + f.id); continue; }
+      points[f.id] = [f.p[0] + dx, mirrored ? -f.p[1] : f.p[1], f.p[2]];
+    }
+    const missing = POINTS[type].map((d) => d.id).filter((id) => !points[id]);
+    return { type, axle, corner: (axle === 'rear' ? 'R' : 'F') + 'L', mirrored, points, missing, skipped };
+  }
 
   // ---------- design targets ("lock & solve") ----------
   // A target is a quantity at ride height, or its rate per 25 mm of bump, that the solver
@@ -1471,6 +1562,21 @@ window.SuspensionEngine = (function () {
       m.axle = 'rear';
       near('CSV: rear axle X is shifted back by the wheelbase (−2400)', hardpointRows(m).find((r) => r.corner === 'RL' && r.id === 'wheelCentre').x, -2400, 1e-9, ' mm');
     });
+    safe('CSV import', () => {
+      // Reading our own export must give back exactly the points we wrote (all integers here).
+      const m = exampleModel(), back = hardpointsFromCsv(hardpointsCsv(m), { wheelbase: m.vehicle.wheelbase });
+      let worst = back.error ? NaN : 0;
+      for (const d of POINTS.doubleWishbone) for (let k = 0; k < 3; k++) worst = Math.max(worst, Math.abs(back.points[d.id][k] - m.points.doubleWishbone[d.id][k]));
+      near('CSV import: our own export reads back unchanged (largest difference 0)', worst + (back.type === 'doubleWishbone' && back.axle === 'front' ? 0 : NaN), 0, 1e-9, ' mm');
+      // Rear MacPherson: the file has the wheel centre at x = −2400; import adds the wheelbase back.
+      const r = exampleModel(); r.type = 'macpherson'; r.axle = 'rear';
+      const rb = hardpointsFromCsv(hardpointsCsv(r), { wheelbase: 2400 });
+      near('CSV import: rear MacPherson file → wheel centre x back at 0', rb.type === 'macpherson' && rb.axle === 'rear' ? rb.points.wheelCentre[0] : NaN, 0, 1e-9, ' mm');
+      // Names only, right side only, Excel-style ";" with decimal commas: FR y −707 mirrors to +707.
+      const nb = hardpointsFromCsv('name;x_mm;y_mm;z_mm\r\n"FR · Lower arm · outer (ball joint)";4,5;-707;156\r\n', { type: 'doubleWishbone' });
+      near('CSV import: right-side point found by name is mirrored, y = +707', nb.points && nb.points.lowerArmOuter ? nb.points.lowerArmOuter[1] : NaN, 707, 1e-9, ' mm');
+      near('CSV import: decimal comma in a ";" file, x = 4.5', nb.points && nb.points.lowerArmOuter ? nb.points.lowerArmOuter[0] : NaN, 4.5, 1e-9, ' mm');
+    });
     safe('Rack position', () => {
       // Vertical steering axis at (0, 700); arm end 150 mm behind it. Flipped: 150 mm in front,
       // rack end moves the same way, and +1 mm of rack now steers left by 1/150 rad.
@@ -1522,7 +1628,7 @@ window.SuspensionEngine = (function () {
     POINTS, pointName, exampleModel, buildMechanism, solve, solveFrom, analyse, sweepTravel, sweepSteer, evaluate,
     rollAt, sweepRoll,
     TARGETS, designMetrics, travelFeasible, createTargetSolver, steeringLayout, flipSteering,
-    PACK_RADIUS, DEFAULT_CLEARANCE, wheelEnvelope, wheelClearance, packagingCheck, packagingAt, hardpointRows, hardpointsCsv,
+    PACK_RADIUS, DEFAULT_CLEARANCE, wheelEnvelope, wheelClearance, packagingCheck, packagingAt, hardpointRows, hardpointsCsv, hardpointsFromCsv,
     mirrorSample, spinAxisFromAngles, camberDeg, toeDeg, casterDeg, kpiDeg, ackermannPercent, idealOuterDeg,
     rotateAboutAxis, runSelfTests, vec: { add, sub, mul, dot, cross, len, dist, unit, lerp, mirror, footOnLine },
   };
@@ -1990,13 +2096,145 @@ $('#showCsvBtn').addEventListener('click', () => {
   if ($('#csvText').hidden) showCsv(false);
   else { $('#csvText').hidden = true; $('#showCsvBtn').textContent = 'Show CSV'; $('#showCsvBtn').setAttribute('aria-expanded', 'false'); }
 });
-if (location.protocol === 'file:') $('#downloadCsvBtn').hidden = false;   // downloads only work when the page is opened from disk
-$('#downloadCsvBtn').addEventListener('click', () => {
-  const url = URL.createObjectURL(new Blob(['﻿' + E.hardpointsCsv(state.model)], { type: 'text/csv;charset=utf-8' }));
-  const a = document.createElement('a'); a.href = url; a.download = csvName(); document.body.append(a); a.click(); a.remove();
+// Downloads work on a normal page (the public site or the file opened from disk), but not inside
+// the sandboxed frame of the claude.ai preview, so there the buttons copy text instead.
+let topLevel = true;
+try { topLevel = window.top === window.self; } catch (e) { topLevel = false; }
+const canDownload = topLevel && /^(https?|file):$/.test(location.protocol);
+function downloadText(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+let toastTimer = 0;
+function toast(text) { const t = $('#toast'); t.textContent = text; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 7000); }
+if (canDownload) $('#downloadCsvBtn').hidden = false;
+$('#downloadCsvBtn').addEventListener('click', () => {
+  downloadText(csvName(), '﻿' + E.hardpointsCsv(state.model), 'text/csv;charset=utf-8');
   $('#csvStatus').textContent = 'Saved ' + csvName() + ' to your downloads folder.';
 });
+/** Read a picked file as text (null when nothing was picked). */
+function pickedText(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  return f ? f.text().then((text) => ({ name: f.name, text })) : Promise.resolve(null);
+}
+$('#importCsvBtn').addEventListener('click', () => $('#importCsvFile').click());
+$('#importCsvFile').addEventListener('change', async (ev) => {
+  const got = await pickedText(ev.target); if (!got) return;
+  const r = E.hardpointsFromCsv(got.text, { wheelbase: state.model.vehicle.wheelbase, type: state.model.type });
+  if (r.error) { $('#csvStatus').textContent = got.name + ': ' + r.error; return; }
+  const n = Object.keys(r.points).length;
+  if (!n) { $('#csvStatus').textContent = got.name + ': no points for this suspension type.'; return; }
+  const typeName = r.type === 'macpherson' ? 'MacPherson' : 'double wishbone';
+  state.baseline = snapshot();
+  commit(() => {
+    state.model.type = r.type; state.model.axle = r.axle;
+    for (const id of Object.keys(r.points)) state.model.points[r.type][id] = r.points[id];
+    state.selected = null; state.hover = null;
+  });
+  buildPointTable(); buildChartOptions(); refresh();
+  const msg = ['Imported ' + n + ' points from ' + got.name + ' (' + r.corner + ', ' + typeName + (r.mirrored ? ', mirrored from the right side' : '') + ').',
+    'The design before the import is the baseline, so the charts show before and after.'];
+  if (r.missing.length) msg.push('Not in the file, kept as they were: ' + r.missing.map((id) => { const n = E.pointName(r.axle, 'left', E.POINTS[r.type].find((d) => d.id === id)); return n.part.toLowerCase() + ' ' + n.point; }).join(', ') + '.');
+  if (r.skipped.length) msg.push(r.skipped.length + ' row(s) ignored (derived or unknown points).');
+  $('#csvStatus').textContent = msg.join(' ');
+  toast(msg[0]);
+});
+
+// ---------------------------------------------------------------- save, open and share
+const SITE_URL = 'https://nyborggarage.github.io/suspension-kinematics/';
+const DESIGN_FORMAT = 'suspension-kinematics-design';
+/** The design file: the whole model plus a small header, as readable JSON. */
+function designFile(model) {
+  return JSON.stringify({ format: DESIGN_FORMAT, version: 1, app: SITE_URL, saved: new Date().toISOString(), model }, null, 1) + '\n';
+}
+/** A model from a design file (or a bare model), or null when it is not a valid design. */
+function modelFromDesign(obj) {
+  const m = obj && obj.format === DESIGN_FORMAT ? obj.model : obj;
+  if (!validModel(m)) return null;
+  const c = normalizeModel(clone(m));
+  for (const k of Object.keys(c.points)) if (!E.POINTS[k]) delete c.points[k];
+  return c;
+}
+function openModel(m, text) {
+  pushUndo();
+  state.model = m; state.selected = null;
+  modelReplaced(); buildChartOptions(); refresh();
+  state.baseline = snapshot(); refreshUI(); frameMain('iso');
+  $('#designStatus').textContent = text;
+  toast(text);
+}
+const designName = () => 'suspension-' + (state.model.type === 'macpherson' ? 'macpherson' : 'double-wishbone') + '-' + state.model.axle + '.json';
+$('#saveDesignBtn').addEventListener('click', async () => {
+  const text = designFile(state.model);
+  if (canDownload) { downloadText(designName(), text, 'application/json'); $('#designStatus').textContent = 'Saved ' + designName() + ' to your downloads folder. Open it again with Open design.'; return; }
+  const ta = $('#designText'); ta.value = text; ta.hidden = false; ta.focus(); ta.select();
+  $('#designStatus').textContent = (await copyText(text))
+    ? 'Saving files is blocked in this preview, so the design was copied instead. Paste it into Notepad and save it as ' + designName() + '.'
+    : 'Saving files is blocked here. The design is selected below: press Ctrl+C, paste into Notepad and save it as ' + designName() + '.';
+});
+$('#openDesignBtn').addEventListener('click', () => $('#openDesignFile').click());
+$('#openDesignFile').addEventListener('change', async (ev) => {
+  const got = await pickedText(ev.target); if (!got) return;
+  let m = null;
+  try { m = modelFromDesign(JSON.parse(got.text)); } catch (e) { m = null; }
+  if (!m) {
+    const csv = /x_mm/i.test(got.text.slice(0, 400));
+    $('#designStatus').textContent = got.name + ' is not a design file' + (csv ? ' (it looks like a hardpoints CSV: use Import CSV under CAD exchange).' : '.');
+    return;
+  }
+  openModel(m, 'Opened ' + got.name + '. Undo (↶) returns to the design you had.');
+});
+
+// Share links carry the design after "#design=": deflate-compressed JSON in base64url ("z"),
+// or plain JSON ("j") where the browser cannot compress. The part after # never leaves the
+// browser, so the design is not sent to any server.
+const roundDeep = (v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : Array.isArray(v) ? v.map(roundDeep) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, roundDeep(x)])) : v);
+const toB64url = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const fromB64url = (s) => { const b = atob(s.replace(/-/g, '+').replace(/_/g, '/')); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
+const streamBytes = async (bytes, tf) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(tf)).arrayBuffer());
+async function encodeDesign(model) {
+  const bytes = new TextEncoder().encode(JSON.stringify(roundDeep(model)));
+  if (typeof CompressionStream === 'function') { try { return 'z' + toB64url(await streamBytes(bytes, new CompressionStream('deflate-raw'))); } catch (e) { /* fall back to plain */ } }
+  return 'j' + toB64url(bytes);
+}
+async function decodeDesign(code) {
+  const kind = code[0], bytes = fromB64url(code.slice(1));
+  if (kind === 'z') return JSON.parse(new TextDecoder().decode(await streamBytes(bytes, new DecompressionStream('deflate-raw'))));
+  if (kind === 'j') return JSON.parse(new TextDecoder().decode(bytes));
+  throw new Error('unknown link format');
+}
+const shareBase = () => (topLevel && /^https?:$/.test(location.protocol) ? location.origin + location.pathname : SITE_URL);
+$('#shareBtn').addEventListener('click', async () => {
+  const link = shareBase() + '#design=' + await encodeDesign(state.model);
+  if (await copyText(link)) {
+    $('#designText').hidden = true;
+    $('#designStatus').textContent = 'Share link copied (' + link.length + ' characters). Whoever opens it gets this design; their own design stays one Undo away.';
+    toast('Share link copied.');
+  } else {
+    const ta = $('#designText'); ta.value = link; ta.hidden = false; ta.focus(); ta.select();
+    $('#designStatus').textContent = 'Copying is blocked here. The link is selected below: press Ctrl+C.';
+  }
+});
+/** Copy to the clipboard; false when it is blocked or does not answer within 1.5 s. */
+function copyText(text) {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(false), 1500);
+    try { navigator.clipboard.writeText(text).then(() => resolve(true), () => resolve(false)); } catch (e) { resolve(false); }
+  });
+}
+/** Open the design in the address (#design=…), then remove it so a reload keeps later edits. */
+async function openFromHash() {
+  const h = location.hash;
+  if (!h.startsWith('#design=')) return;
+  let m = null;
+  try { m = modelFromDesign(await decodeDesign(decodeURIComponent(h.slice(8)))); } catch (e) { m = null; }
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* sandboxed: fine */ }
+  if (!m) { const t = 'The share link is damaged or incomplete, so your own design is still shown.'; $('#designStatus').textContent = t; toast(t); return; }
+  openModel(m, 'Opened the design from the share link. Undo (↶) returns to the design you had.');
+}
+window.addEventListener('hashchange', openFromHash);
 
 for (const b of document.querySelectorAll('#unitSeg button')) b.addEventListener('click', () => {
   const want = b.dataset.unit === 'in';
@@ -3094,7 +3332,8 @@ state.baseline = snapshot();
 refreshUI();
 frameMain('iso');
 // Debug handle for automated checks.
-window.__app = { state, tc, proxy, get sweepT() { return sweepT; }, get sweepS() { return sweepS; }, get cur() { return cur; } };
+window.__app = { state, tc, proxy, get sweepT() { return sweepT; }, get sweepS() { return sweepS; }, get cur() { return cur; }, encodeDesign, decodeDesign, modelFromDesign, designFile, openFromHash };
+openFromHash();
 </script>
 
 </html>

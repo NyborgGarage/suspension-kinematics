@@ -1,0 +1,10 @@
+{
+    "autodeskProduct": "Fusion360",
+    "type": "script",
+    "author": "hjuloppheng-kinematikk contributors",
+    "description": {
+        "": "Export the named hardpoint construction points (e.g. FL · Lower arm · inner forward) to a CSV that the suspension prototype reads with Import CSV (cm to mm, Z up)."
+    },
+    "supportedOS": "windows|mac",
+    "editEnabled": true
+}

@@ -611,7 +611,22 @@ Fusion's API is Python (or C++), so the Fusion part stays Python.
 - **Tests.** `tests/test_cad_import.py` runs without Fusion or FreeCAD and checks
   the parsing, the mirroring, the links and the unit conversion against an
   exported example.
+- **Back from Fusion (2026-11-25).** `cad/fusion/ExportHardpoints` writes the named
+  construction points (cm × 10) to the same CSV columns, with an empty id. The
+  prototype's **Import CSV** (under CAD exchange, `hardpointsFromCsv`) finds points by
+  id or by full name, mirrors a right-only file, undoes the wheelbase shift of rear
+  files, reads ";" files with decimal commas, and makes the design before the import
+  the baseline. Points not in the file are kept and listed.
 - **Not yet tested inside Fusion or FreeCAD.**
+
+**Design files and share links (2026-11-25).** *Save design* writes the whole model
+(both types, wheel, vehicle, sweep, locks, targets) as JSON with a small header
+(`format: "suspension-kinematics-design"`, `version: 1`). *Open design* reads it back
+and makes it the baseline. *Copy share link* puts the same model, rounded to 0.001,
+deflate-compressed and base64url-encoded, after `#design=` in the site URL (about
+650 characters for the example). The part after `#` is never sent to the server. Opening
+such a link replaces the design shown, keeps the old one one Undo away, and removes the
+code from the address bar.
 
 The plan below (JSON, User Parameters, export back to the app) is still the goal.
 
