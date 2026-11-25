@@ -324,6 +324,7 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
     </section>
     <section class="block"><h2>Wheel and tyre</h2><div class="params" id="paramsWheel"></div></section>
     <section class="block"><h2>Vehicle</h2><div class="params" id="paramsVehicle"></div><p class="note" style="margin:8px 0 0">Used for anti-dive, anti-squat and anti-lift. Brakes are outboard; on the rear axle the diff is chassis-mounted.</p></section>
+    <section class="block"><h2>Springs and anti-roll bar</h2><div class="params" id="paramsSprings"></div><p class="note" style="margin:8px 0 0">For this axle. The spring sits on the damper (or strut) axis, so it uses the motion ratio from the geometry. The bar is a steel torsion bar: its straight middle section twists, the arms are taken as stiff. Bar link travel per wheel travel is the bar's own motion ratio.</p></section>
     <section class="block"><h2>Sweep</h2><div class="params" id="paramsSweep"></div></section>
     <section class="block">
       <h2>CAD exchange (CSV)</h2>
@@ -413,6 +414,7 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
       <ul class="moved" id="movedList"></ul>
     </section>
     <section class="block"><h2>At ride height</h2><table class="ro" id="roTable"></table></section>
+    <section class="block"><h2>Ride and roll stiffness</h2><table class="ro" id="springTable"></table><p class="note" id="springNote" style="margin:8px 0 0"></p></section>
     <section class="block"><h2>Upright, relative to wheel centre</h2><table class="ro" id="uprightTable"></table></section>
     <section class="block">
       <h2>Room inside the wheel</h2>
@@ -615,6 +617,8 @@ window.SuspensionEngine = (function () {
     return { corner, part, point: def.name, full: corner + ' · ' + part + ' · ' + def.name };
   }
 
+  /** Spring, tyre and bar inputs of the example (a generic light car, not any particular one). */
+  const defaultSprings = () => ({ rate: 35, cornerMass: 250, tyreRate: 250, targetFreq: 1.5, barDiameter: 22, barWall: 0, barLength: 900, barArm: 200, barMR: 0.6 });
   /** A generic example corner (not any particular car). Left side, mm. */
   function exampleModel() {
     return {
@@ -639,6 +643,7 @@ window.SuspensionEngine = (function () {
       wheel: { radius: 300, width: 205, rimDiameter: 15, rimWidth: 7, offset: 35, rimWall: 20, camber: -1.0, toe: 0.0 },
       vehicle: { wheelbase: 2400, cgHeight: 480, brakeFront: 65 },
       sweep: { bump: 90, droop: 80, rack: 70 },
+      springs: defaultSprings(),
     };
   }
 
@@ -851,7 +856,57 @@ window.SuspensionEngine = (function () {
     const samples = [...g.down.slice().reverse(), ...g.up].filter((v) => got.has(v)).map((v) => got.get(v));
     const zero = got.get(0) || null;
     if (zero) for (const s of samples) { s.track = 2 * (s.cp[1] - zero.cp[1]); s.wcx = s.wc[0] - zero.wc[0]; }
+    if (model.springs) for (const s of samples) { const sm = springMetrics(model.springs, s.mr, 2 * s.cp[1]); s.wheelRate = sm.wheelRate; s.rideFreq = sm.rideFreq; }
     return { key, samples, failHigh, failLow, step, zero };
+  }
+
+  // ---------- springs, tyre and anti-roll bar ----------
+  /** Shear modulus of spring steel, N/mm². */
+  const G_STEEL = 79300;
+  /**
+   * Torsional rate of the anti-roll bar's straight centre section, N·mm/rad: K = G·J / L with
+   * J = π(D⁴ − d⁴)/32 (d = 0 for a solid bar). Bending of the bar's arms is ignored, so a real bar
+   * is somewhat softer than this.
+   */
+  function barTorsionRate(sp) {
+    const D = sp.barDiameter, L = sp.barLength;
+    if (!(D > 0) || !(L > 0)) return 0;
+    const d = sp.barWall > 0 && 2 * sp.barWall < D ? D - 2 * sp.barWall : 0;
+    return G_STEEL * Math.PI * (D ** 4 - d ** 4) / 32 / L;
+  }
+  /** N·mm/rad → N·m per degree. */
+  const nmPerDeg = (nmmPerRad) => nmmPerRad / 1000 * Math.PI / 180;
+  /**
+   * Ride and roll numbers for one axle from the spring, tyre and bar inputs.
+   * mr is the spring's motion ratio (spring compression per mm of wheel travel; the spring sits
+   * on the damper / strut axis), track is the contact-patch track in mm.
+   * - Wheel rate = k_spring · MR² (the spring force goes down by MR and its travel by MR again).
+   *   The small extra term from MR changing under the static spring load is left out.
+   * - Ride rate: wheel rate and tyre rate are springs in series, K = Kw·Kt / (Kw + Kt).
+   * - Ride frequency of the sprung corner mass: f = √(K/m) / 2π.
+   * - Roll: a roll angle φ moves each wheel ±(t/2)·φ, so the springs give Kw·t²/2 per radian.
+   *   The bar twists by 2·MRbar·(t/2)φ / arm, which gives Kθ·MRbar²·t²/arm² per radian.
+   */
+  function springMetrics(sp, mr, track) {
+    const kw = sp.rate * mr * mr, kt = sp.tyreRate, m = sp.cornerMass;
+    const series = (a, b) => (b > 0 ? a * b / (a + b) : a);
+    const kr = series(kw, kt);
+    const rideFreq = m > 0 && kr > 0 ? Math.sqrt(kr * 1000 / m) / (2 * Math.PI) : NaN;
+    let springForFreq = NaN;
+    if (sp.targetFreq > 0 && m > 0 && mr > 0) {
+      const krT = (2 * Math.PI * sp.targetFreq) ** 2 * m / 1000;              // N/mm needed with the tyre
+      const kwT = kt > 0 ? (krT < kt ? krT * kt / (kt - krT) : Infinity) : krT;   // remove the tyre in series
+      springForFreq = kwT / (mr * mr);
+    }
+    const barTorsion = barTorsionRate(sp);
+    const barWheelRate = sp.barArm > 0 ? barTorsion * sp.barMR * sp.barMR / (sp.barArm * sp.barArm) : 0; // one wheel moved, the other held
+    const t2 = track * track;
+    const rollSprings = nmPerDeg(kw * t2 / 2), rollBar = nmPerDeg(barWheelRate * t2);
+    const rollTotal = rollSprings + rollBar;
+    // With the tyres: in roll each wheel sees Kw + 2·(bar rate), in series with its tyre.
+    const rollWithTyres = nmPerDeg(series(kw + 2 * barWheelRate, kt) * t2 / 2);
+    return { wheelRate: kw, rideRate: kr, rideFreq, springForFreq, barTorsion: nmPerDeg(barTorsion), barWheelRate,
+      rollSprings, rollBar, rollTotal, rollWithTyres, barShare: rollTotal > 0 ? rollBar / rollTotal * 100 : NaN };
   }
   /** Bump/droop sweep at straight-ahead. */
   const sweepTravel = (mech, model) => runSweep(mech, model, 'travel', model.sweep.droop, model.sweep.bump, 2.5);
@@ -1556,6 +1611,23 @@ window.SuspensionEngine = (function () {
       m.axle = 'rear';
       near('CSV: rear axle X is shifted back by the wheelbase (−2400)', hardpointRows(m).find((r) => r.corner === 'RL' && r.id === 'wheelCentre').x, -2400, 1e-9, ' mm');
     });
+    safe('Springs and bar', () => {
+      // Spring 40 N/mm at motion ratio 0.5, tyre 40 N/mm, 200 kg corner, track 1500 mm.
+      // Solid bar Ø20 × 900 mm, arms 200 mm, link motion ratio 0.5.
+      const sp = { rate: 40, tyreRate: 40, cornerMass: 200, targetFreq: Math.sqrt(40) / (2 * Math.PI), barDiameter: 20, barWall: 0, barLength: 900, barArm: 200, barMR: 0.5 };
+      const r = springMetrics(sp, 0.5, 1500);
+      near('Wheel rate = 40 · 0.5² = 10 N/mm', r.wheelRate, 10, 1e-9, ' N/mm');
+      near('Ride rate, 10 and 40 N/mm in series = 400/50 = 8 N/mm', r.rideRate, 8, 1e-9, ' N/mm');
+      near('Ride frequency = √(8000 N/m / 200 kg) / 2π = √40 / 2π', r.rideFreq, Math.sqrt(40) / (2 * Math.PI), 1e-9, ' Hz');
+      near('Spring for that frequency comes back as 40 N/mm', r.springForFreq, 40, 1e-6, ' N/mm');
+      near('Roll stiffness from springs = 10 · 1500² / 2 N·mm/rad = 11 250 N·m/rad = 196.350 N·m/°', r.rollSprings, 11250 * Math.PI / 180, 1e-6, ' N·m/°');
+      // J = π·20⁴/32 = 15 707.96 mm⁴; K = 79 300 · J / 900 = 1 384 046 N·mm/rad = 24.156 N·m/°
+      near('Bar torsion, solid Ø20 × 900: G·πD⁴/32 / L = 1 384 046 N·mm/rad', barTorsionRate(sp), 79300 * Math.PI * 160000 / 32 / 900, 1e-6, ' N·mm/rad');
+      // Hollow Ø20 × 3 wall: J = π(20⁴ − 14⁴)/32 = π·121 584/32
+      near('Bar torsion, tube Ø20 × 3: J = π(20⁴ − 14⁴)/32', barTorsionRate(Object.assign({}, sp, { barWall: 3 })), 79300 * Math.PI * 121584 / 32 / 900, 1e-6, ' N·mm/rad');
+      // Roll from the bar = Kθ · MR² · t² / arm² = 1 384 046 · 0.25 · 1500² / 200² N·mm/rad
+      near('Roll stiffness from the bar = Kθ·MR²·t²/arm² = 339.69 N·m/°', r.rollBar, 79300 * Math.PI * 160000 / 32 / 900 * 0.25 * 1500 * 1500 / 40000 / 1000 * Math.PI / 180, 1e-6, ' N·m/°');
+    });
     safe('CSV import', () => {
       // Reading our own export must give back exactly the points we wrote (all integers here).
       const m = exampleModel(), back = hardpointsFromCsv(hardpointsCsv(m), { wheelbase: m.vehicle.wheelbase });
@@ -1623,7 +1695,7 @@ window.SuspensionEngine = (function () {
     rollAt, sweepRoll,
     TARGETS, designMetrics, travelFeasible, createTargetSolver, steeringLayout, flipSteering,
     PACK_RADIUS, DEFAULT_CLEARANCE, wheelEnvelope, wheelClearance, packagingCheck, packagingAt, hardpointRows, hardpointsCsv, hardpointsFromCsv,
-    mirrorSample, spinAxisFromAngles, camberDeg, toeDeg, casterDeg, kpiDeg, ackermannPercent, idealOuterDeg,
+    springMetrics, barTorsionRate, defaultSprings, mirrorSample, spinAxisFromAngles, camberDeg, toeDeg, casterDeg, kpiDeg, ackermannPercent, idealOuterDeg,
     rotateAboutAxis, runSelfTests, vec: { add, sub, mul, dot, cross, len, dist, unit, lerp, mirror, footOnLine },
   };
 })();
@@ -1673,6 +1745,9 @@ function disp(u) {
   if (u === 'mm') return { f: 1 / MM_PER_IN, unit: 'in', dd: 2 };
   if (u === '°/25 mm') return { f: MM_PER_IN / 25, unit: '°/in', dd: 0 };
   if (u === 'mm/25 mm') return { f: 1 / 25, unit: 'in/in', dd: 2 };
+  if (u === 'N/mm') return { f: MM_PER_IN / 4.4482216, unit: 'lb/in', dd: 0 };
+  if (u === 'kg') return { f: 1 / 0.45359237, unit: 'lb', dd: 0 };
+  if (u === 'N·m/°') return { f: 1 / 1.3558179, unit: 'lb·ft/°', dd: 0 };
   return { f: 1, unit: u, dd: 0 };
 }
 /** How a rate per 25 mm of wheel travel of a quantity with unit u is shown (per inch in inch mode). */
@@ -1701,6 +1776,8 @@ const METRICS = {
   antiSquat2d: { label: 'Anti-squat, pivot lines (2D)', unit: '%', d: 1, span: 10, axle: 'rear' },
   antiLift2d:  { label: 'Anti-lift, pivot lines (2D)', unit: '%', d: 1, span: 10, axle: 'rear' },
   mr:        { label: 'Motion ratio', unit: '', d: 3, span: 0.05 },
+  wheelRate: { label: 'Wheel rate (spring)', unit: 'N/mm', d: 1, span: 2 },
+  rideFreq:  { label: 'Ride frequency', unit: 'Hz', d: 2, span: 0.1 },
   steerL:    { label: 'Steer angle, left wheel', unit: '°', d: 2, span: 5 },
   steerR:    { label: 'Steer angle, right wheel', unit: '°', d: 2, span: 5 },
   ackermann: { label: 'Ackermann', unit: '%', d: 0, span: 20 },
@@ -1713,7 +1790,7 @@ const METRICS = {
   travelL:   { label: 'Wheel travel, left wheel', unit: 'mm', d: 1, span: 10 },
 };
 const ROLL_KEYS = ['camberGroundL', 'camberGroundR', 'rcRollH', 'rcRollY', 'toeL', 'toeR', 'travelL'];
-const TRAVEL_KEYS = ['camber', 'toe', 'caster', 'kpi', 'scrub', 'trail', 'spindle', 'rc', 'track', 'wcx', 'antiDive', 'antiSquat', 'antiLift', 'antiDive2d', 'antiSquat2d', 'antiLift2d', 'mr'];
+const TRAVEL_KEYS = ['camber', 'toe', 'caster', 'kpi', 'scrub', 'trail', 'spindle', 'rc', 'track', 'wcx', 'antiDive', 'antiSquat', 'antiLift', 'antiDive2d', 'antiSquat2d', 'antiLift2d', 'mr', 'wheelRate', 'rideFreq'];
 const STEER_KEYS = ['steerL', 'steerR', 'ackermann', 'camber', 'caster', 'kpi', 'scrub', 'trail'];
 const PART_COLOR = { upperArm: '--part-upper', lowerArm: '--part-lower', tieRod: '--part-tie', wheel: '--ink-2', damper: '--part-damper', strut: '--part-damper' };
 
@@ -1742,6 +1819,9 @@ function normalizeModel(m) {
   const wd = { rimWidth: 7, offset: 35, rimWall: 20 };
   for (const k of Object.keys(wd)) if (!Number.isFinite(m.wheel[k])) m.wheel[k] = wd[k];
   if (!Number.isFinite(m.sweep.roll)) m.sweep.roll = 3;
+  const sd = E.defaultSprings();
+  if (!m.springs || typeof m.springs !== 'object') m.springs = sd;
+  for (const k of Object.keys(sd)) if (!Number.isFinite(m.springs[k])) m.springs[k] = sd[k];
   return m;
 }
 
@@ -1832,7 +1912,7 @@ function scheduleRefresh() {
   requestAnimationFrame(run);
   setTimeout(run, 40); // fallback when frames are throttled
 }
-function refreshUI() { renderGroundNote(); syncControls(); renderCharts(); renderReadouts(); renderTargets(); renderUpright(); renderSteerLayout(); renderPack(); renderStatus(); updateScene(); syncGizmo(); requestRender(); }
+function refreshUI() { renderGroundNote(); syncControls(); renderCharts(); renderReadouts(); renderSprings(); renderTargets(); renderUpright(); renderSteerLayout(); renderPack(); renderStatus(); updateScene(); syncGizmo(); requestRender(); }
 
 // ---------------------------------------------------------------- steering layout (rack behind / in front)
 let flipNote = null;   // { text, key } shown until the steering points change again
@@ -2028,6 +2108,17 @@ const PARAMS = {
     ['sweep.rack', 'Rack travel each way', 'mm', 5, 2, 200],
     ['sweep.roll', 'Body roll each way (limited by travel)', '°', 0.5, 0.5, 10],
   ],
+  paramsSprings: [
+    ['springs.rate', 'Spring rate (on the damper axis)', 'N/mm', 1, 0, 1000],
+    ['springs.cornerMass', 'Sprung mass on this corner', 'kg', 5, 1, 3000],
+    ['springs.tyreRate', 'Tyre vertical rate (0 = rigid)', 'N/mm', 10, 0, 2000],
+    ['springs.targetFreq', 'Wanted ride frequency', 'Hz', 0.05, 0, 5],
+    ['springs.barDiameter', 'Anti-roll bar outer diameter (0 = none)', 'mm', 1, 0, 60],
+    ['springs.barWall', 'Bar wall thickness (0 = solid)', 'mm', 0.5, 0, 30],
+    ['springs.barLength', 'Bar length that twists', 'mm', 10, 50, 2000],
+    ['springs.barArm', 'Bar arm length', 'mm', 5, 20, 600],
+    ['springs.barMR', 'Bar link travel per wheel travel', '', 0.05, 0, 2],
+  ],
 };
 const getPath = (o, p) => p.split('.').reduce((a, k) => a[k], o);
 const setPath = (o, p, v) => { const ks = p.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
@@ -2037,15 +2128,15 @@ function buildParams() {
     for (const [path, label, u, step, lo, hi] of list) {
       const id = 'p-' + path.replace('.', '-');
       const lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = label;
-      const len = u === 'mm', sc = len ? Lv(1) : 1;
-      const inp = document.createElement('input'); inp.type = 'number'; inp.id = id; inp.step = String(len && inches ? 0.1 : step); inp.min = String(Number((lo * sc).toFixed(3))); inp.max = String(Number((hi * sc).toFixed(3))); inp.dataset.path = path; inp.dataset.len = len ? '1' : '';
-      const un = document.createElement('span'); un.className = 'u'; un.textContent = len ? Lu() : u;
+      const len = u === 'mm', du = disp(u), sc = du.f;
+      const inp = document.createElement('input'); inp.type = 'number'; inp.id = id; inp.step = String(len && inches ? 0.1 : sc !== 1 ? 'any' : step); inp.min = String(Number((lo * sc).toFixed(3))); inp.max = String(Number((hi * sc).toFixed(3))); inp.dataset.path = path; inp.dataset.len = len ? '1' : ''; inp.dataset.f = String(sc);
+      const un = document.createElement('span'); un.className = 'u'; un.textContent = du.unit;
       if (path === 'sweep.rack') { lab.dataset.front = '1'; inp.dataset.front = '1'; un.dataset.front = '1'; }
       box.append(lab, inp, un);
       inp.addEventListener('change', () => {
         const v = parseFloat(inp.value);
         if (!Number.isFinite(v)) { syncParams(); return; }
-        const nv = clamp(len ? toMm(v) : v, lo, hi);
+        const nv = clamp(v / sc, lo, hi);
         if (path === 'wheel.radius') { changeTyreRadius(nv); return; }
         commit(() => setPath(state.model, path, nv));
       });
@@ -2080,7 +2171,7 @@ function renderGroundNote() {
 }
 function syncParams() {
   for (const inp of document.querySelectorAll('.params input')) {
-    if (document.activeElement !== inp) { const v = getPath(state.model, inp.dataset.path); inp.value = String(inp.dataset.len ? Number(Lv(v).toFixed(inches ? 3 : 1)) : v); }
+    if (document.activeElement !== inp) { const v = getPath(state.model, inp.dataset.path), f = Number(inp.dataset.f) || 1; inp.value = String(inp.dataset.len && !inches ? Number(v.toFixed(1)) : f !== 1 ? Number((v * f).toFixed(f < 0.1 ? 3 : 2)) : v); }
   }
   for (const el of document.querySelectorAll('.params [data-front]')) el.hidden = state.model.axle !== 'front';
 }
@@ -2545,6 +2636,40 @@ function renderReadouts() {
   add('Front-view swing arm', Math.abs(fvsa) < 1e5 ? fvsa : NaN, 0, 'mm', NaN, NaN);
   tbl.append(tb);
   renderSteerTable();
+}
+/** Springs, tyre and bar at ride height, with the change against the baseline. */
+function renderSprings() {
+  const tbl = $('#springTable'); tbl.textContent = '';
+  const z = sweepT && sweepT.zero, m = state.model;
+  if (!z) return;
+  const r = E.springMetrics(m.springs, z.mr, 2 * z.cp[1]);
+  const b = state.baseline && state.baseline.sweepT && state.baseline.sweepT.zero && state.baseline.model.springs
+    ? E.springMetrics(state.baseline.model.springs, state.baseline.sweepT.zero.mr, 2 * state.baseline.sweepT.zero.cp[1]) : null;
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>Quantity</th><th>Value</th><th>Δ base</th></tr>';
+  const tb = document.createElement('tbody');
+  const add = (label, key, d, u, title) => {
+    const du = disp(u), dv = Math.min(4, d + du.dd), v = r[key], bv = b ? b[key] : NaN;
+    const tr = document.createElement('tr');
+    const a = document.createElement('td'); a.textContent = label; if (title) a.title = title;
+    const c = document.createElement('td'); c.className = 'v'; c.textContent = Number.isFinite(v) ? num(v * du.f, dv) + unitText(du.unit) : v === Infinity ? 'not reachable' : '–';
+    const e = document.createElement('td'); const dl = v - bv;
+    if (Number.isFinite(dl)) { e.textContent = signed(dl * du.f, dv); if (Number((dl * du.f).toFixed(dv)) !== 0) e.className = 'changed'; }
+    tr.append(a, c, e); tb.append(tr);
+  };
+  add('Wheel rate from the spring', 'wheelRate', 1, 'N/mm', 'Spring rate × motion ratio²');
+  add('Ride rate with the tyre', 'rideRate', 1, 'N/mm', 'Wheel rate and tyre rate in series');
+  add('Ride frequency', 'rideFreq', 2, 'Hz', 'Sprung corner mass on the ride rate: √(K/m) / 2π');
+  add('Spring rate for ' + num(m.springs.targetFreq, 2) + ' Hz', 'springForFreq', 1, 'N/mm', 'The spring that gives the wanted ride frequency at this motion ratio');
+  add('Bar torsional rate', 'barTorsion', 1, 'N·m/°', 'G·J / L of the straight section');
+  add('Bar rate at one wheel', 'barWheelRate', 1, 'N/mm', 'One wheel lifted, the other held');
+  add('Roll stiffness, springs', 'rollSprings', 0, 'N·m/°', 'Wheel rate × track² / 2');
+  add('Roll stiffness, bar', 'rollBar', 0, 'N·m/°', 'Bar rate at one wheel × track²');
+  add('Roll stiffness, total', 'rollTotal', 0, 'N·m/°');
+  add('Roll stiffness with tyres', 'rollWithTyres', 0, 'N·m/°', 'Springs and bar in series with the tyres');
+  add('Bar share of this axle', 'barShare', 0, '%');
+  tbl.append(thead, tb);
+  $('#springNote').textContent = 'Motion ratio ' + num(z.mr, 3) + ' and track ' + fmtL(2 * z.cp[1], 0) + ' from the geometry at ride height. Roll stiffness is for this axle; the roll angle per g needs both axles. The wheel-rate chart shows how the rate changes with the motion ratio through travel.';
 }
 function renderSteerTable() {
   const tbl = $('#steerTable'); tbl.textContent = '';

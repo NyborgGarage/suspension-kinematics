@@ -819,7 +819,7 @@ Each phase ends with something you can use and test yourself.
 | 5 | **Design cascade** (§6) and **MacPherson vs. double wishbone comparison** against the same targets | One target set (for example the MR2 example) solved for both types, compared side by side |
 | 6 | **Fusion bridge** (import/export add-in) | A round trip Fusion → app → Fusion gives identical points |
 | 7 | **Measuring helpers** (§8.5): datum choice, triangulation, alignment cross-check | – |
-| 8 | Axle level (roll, both sides, ARB), then multilink | – |
+| 8 | Axle level (roll, both sides, ARB), then multilink | **Started in the prototype (2026-11-25):** body roll sweep, and per-axle springs and bar: wheel rate k·MR², ride rate with the tyre in series, ride frequency, spring for a wanted frequency, bar torsion G·πD⁴/32/L (arms taken as stiff), roll stiffness Kw·t²/2 + Kθ·MRbar²·t²/arm². Roll angle per g needs both axles (later, with variants). |
 | 9 | **Community library** | – |
 
 ### Lock & solve in the prototype

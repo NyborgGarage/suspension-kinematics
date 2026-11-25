@@ -61,13 +61,17 @@ documentation, code, identifiers and comments are in English.
 - `prototype/suspension-prototype.html` is the Phase 1 clickable prototype: one HTML
   file, plain JavaScript + three.js 0.170 from jsDelivr (no build step). The engine part
   (a classic `<script>`, no DOM) is a generic 6-unknown Newton solver for the upright
-  pose, for double wishbone and MacPherson, with 52 hand-checked "engine checks" that
+  pose, for double wishbone and MacPherson, with 60 hand-checked "engine checks" that
   run on page load. Charts sweep heave, body roll (`rollAt`/`sweepRoll`: wheels at ∓h·tan φ,
   camber to ground, roll steer, roll centre from both contact-patch lines) and steering.
   Anti values come from the 3D path of the contact patch / wheel centre (virtual work); the
   textbook 2D pivot-axis-line SVIC (`svic2d`, `antiDive2d` …) is shown beside them for comparison.
   They differ when ball joints sit off the pivot lines in side view (example DW: 36 % vs 51 %).
-  A mm/inch switch converts display only (`disp`, `Lv`, `toMm` in the UI); the model stays in mm.
+  Springs and anti-roll bar (`model.springs`, `springMetrics`): wheel rate = k·MR² with MR from the
+  damper/strut geometry, ride rate in series with the tyre, ride frequency, spring rate for a wanted
+  frequency, bar torsion G·J/L, roll stiffness (springs Kw·t²/2, bar Kθ·MRbar²·t²/arm²). Per axle only.
+  Changing the loaded tyre radius shifts all hardpoints and the CG by Δr (`changeTyreRadius`).
+  A mm/inch switch converts display only (also N/mm→lb/in, kg→lb, N·m/°→lb·ft/°) (`disp`, `Lv`, `toMm` in the UI); the model stays in mm.
   Styling: original calm dark palette (IBM Plex) with the Nyborg Garage logo and black
   background; the user found the full brand palette too intense. A "Steering layout" panel switches the rack between behind and in
   front of the axle (`flipSteering`: mirrors the arm through the steering axis in plan view).

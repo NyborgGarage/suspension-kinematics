@@ -31,7 +31,10 @@ a browser (double-click it). It needs an internet connection to load three.js.
   Discard it.
 - Steering layout: one button moves the rack (or toe link) between behind and in front
   of the axle, and shows arm angle, the arm angle for 100 % Ackermann, rack length and height.
-- 52 engine checks run on load and compare the solver with values worked out by hand.
+- Springs and anti-roll bar: spring rate, sprung corner mass, tyre rate and bar size give wheel
+  rate, ride rate, ride frequency (and the spring for a wanted frequency), and roll stiffness from
+  springs and bar. Wheel rate and ride frequency can be charted through travel.
+- 60 engine checks run on load and compare the solver with values worked out by hand.
 
 - Room inside the wheel: rim width, offset (ET) and rim wall define the wheel. Ball joints,
   arms, tie rods and the strut are checked against rim, tyre and hub face at full bump and
