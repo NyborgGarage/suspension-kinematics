@@ -61,7 +61,7 @@ documentation, code, identifiers and comments are in English.
 - `prototype/suspension-prototype.html` is the Phase 1 clickable prototype: one HTML
   file, plain JavaScript + three.js 0.170 from jsDelivr (no build step). The engine part
   (a classic `<script>`, no DOM) is a generic 6-unknown Newton solver for the upright
-  pose, for double wishbone, MacPherson and (rear) multilink, strut + lateral links and trailing arm, with 83 hand-checked "engine checks" that
+  pose, for double wishbone, MacPherson, multilink (front and rear), (rear) strut + lateral links and trailing arm, with 85 hand-checked "engine checks" that
   run on page load. Charts sweep heave, body roll (`rollAt`/`sweepRoll`: wheels at ∓h·tan φ,
   camber to ground, roll steer, roll centre from both contact-patch lines) and steering.
   Anti values come from the 3D path of the contact patch / wheel centre (virtual work); the
@@ -74,12 +74,16 @@ documentation, code, identifiers and comments are in English.
   multilink = 5 link lengths, virtual steering axis from `virtualJoint` (closest approach of the link lines); strut + links =
   strut (2) + 3 links, no steering axis; trailing arm = inboard pivot fixed (3) + outboard pivot on the axis (2), no steering axis,
   `trailingArmLayout` (sweep, slope, arm length). With no steering axis, caster/KPI/scrub/trail are NaN and those targets are hidden.
-  Old designs get missing types from the example (`normalizeModel`). The new types' examples are rear corners.
+  Old designs get missing types from the example (`normalizeModel`). The new types' examples are rear corners; multilink also
+  has a front example (`FRONT_EXAMPLES`, `examplePoints(type, axle)`), loaded by `useAxleExample` when the type's points are
+  still the untouched example of the other axle (edited points are kept).
   "Solve every type" (`startSolveAll`): the variant's ticked targets (`ticked`) solved with `createTargetSolver` for each type
   allowed on the axle, from that type's own points and locks (`freeCoordsFor`); axis targets are n/a for types without a
   steering axis. Results table `renderSolveAll`; `variantFromSolve` opens a result as a new variant. Moves > 100 mm are flagged.
-  Realistic view (`look`, `RealCorner`, lit MeshStandardMaterial, saved under `LOOK_KEY`): double wishbone only so far.
-  Lower arm on rubber bushings, upper arm on uniballs, upright/hub/disc/caliper, coilover (spring tube rebuilt by length),
+  Realistic view (`look`, `RealCorner`, lit MeshStandardMaterial, saved under `LOOK_KEY`): double wishbone and MacPherson (`REAL_TYPES`).
+  DW: lower arm on rubber bushings, upper arm on rod ends (heim / rose joints) at the body and a ball joint at the upright, coilover.
+  MacPherson (`strut`): pressed lower arm on bushings, strut body clamped in the knuckle, rod, spring, bump stop, top mount.
+  Both: upright/hub/disc/caliper, spring tube rebuilt by length (`coil`),
   lathe tyre and rim (see-through unless `solidWheel`). The diagram's points stay on top (depthTest off) for editing.
   Caliper and disc are drawn only; the packaging check does not include them.
   Variants A–D (`state.variants`, `switchVariant`, `addVariant`): whole models side by side, each with its

@@ -371,7 +371,9 @@ which give you the classic 2D diagrams for free.
   the steering axis, its ground intercept, the contact patch, and a dimension
   line between them. That is great for teaching.
 
-**Realistic view (2026-11-25).** A second drawing style for teaching, next to the diagram: the same solved points drawn as real parts (tubular arms, rubber bushings or uniballs, cast upright, hub, brake disc and caliper, coilover, tyre on a rim). It is a button in the 3D view, not a separate app, so variants, Solve and share links all work in it. Double wishbone first; the other types and guided lessons follow.
+**Realistic view (2026-11-25).** A second drawing style for teaching, next to the diagram: the same solved points drawn as real parts (tubular or pressed arms, rubber bushings, rod ends (heim / rose joints), ball joints, cast upright, hub, brake disc and caliper, coilover or MacPherson strut with spring and top mount, tyre on a rim). It is a button in the 3D view, not a separate app, so variants, Solve and share links all work in it. Double wishbone and MacPherson so far (2026-11-26); the other types and guided lessons follow.
+
+**Front multilink (2026-11-26).** Multilink is allowed on both axles. The front example splits each wishbone of the double wishbone example into two links with their own ball joints (a near-transverse lower link and a forward tension strut, two upper links), tuned with Solve to zero bump steer, 36° inner lock and ≥ 5 mm room in the wheel. Its lower link lines cross about 30 mm outboard of the joints, so the virtual kingpin sits nearer the wheel than one ball joint could. The front and rear examples are kept apart: switching axle loads the other example only while the points are untouched.
 
 ### 5.3 Editing directly in 3D
 

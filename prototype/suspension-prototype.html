@@ -305,7 +305,7 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
     <div class="seg" role="group" aria-label="Suspension type" id="typeSeg">
       <button type="button" data-type="doubleWishbone">Double wishbone</button>
       <button type="button" data-type="macpherson">MacPherson</button>
-      <button type="button" data-type="multilink" title="Five separate links (rear axle); the steering axis is virtual (where the link lines cross)">Multilink</button>
+      <button type="button" data-type="multilink" title="Five separate links, front or rear; the steering axis is virtual (where the link lines cross)">Multilink</button>
       <button type="button" data-type="strutLinks" title="Strut with two lateral links and a trailing rod (rear axle)">Strut + links</button>
       <button type="button" data-type="trailingArm" title="Trailing or semi-trailing arm (rear axle): one arm turning about a fixed pivot axis">Trailing arm</button>
     </div>
@@ -387,7 +387,7 @@ textarea.csv { width: 100%; margin-top: 8px; padding: 6px; border: 1px solid var
           <button type="button" data-view="iso">Iso</button><button type="button" data-view="front">Front</button><button type="button" data-view="side">Side</button><button type="button" data-view="top">Top</button>
         </div>
         <div class="seg small" id="lookSeg" role="group" aria-label="Drawing style">
-          <button type="button" data-look="diagram" title="Lines and points, one colour per part">Diagram</button><button type="button" data-look="real" title="The parts as they look on a car (double wishbone so far)">Realistic</button>
+          <button type="button" data-look="diagram" title="Lines and points, one colour per part">Diagram</button><button type="button" data-look="real" title="The parts as they look on a car (double wishbone and MacPherson so far)">Realistic</button>
         </div>
         <button class="btn small" id="wheelBtn" type="button" aria-pressed="false" title="Solid tyre and rim instead of see-through" hidden>Solid wheel</button>
         <button class="btn small" id="labelsBtn" type="button" aria-pressed="true">Part labels</button>
@@ -708,7 +708,7 @@ window.SuspensionEngine = (function () {
         ['lowerArmInnerForward', 'lowerArmOuter', 'lowerArm'], ['lowerArmInnerRearward', 'lowerArmOuter', 'lowerArm'], ['tieRodInner', 'tieRodOuter', 'tieRod']] },
     macpherson: { label: 'MacPherson', short: 'MacPh.', slug: 'macpherson', axles: ['front', 'rear'], axis: 'real', strut: true,
       links: [['lowerArmInnerForward', 'lowerArmOuter', 'lowerArm'], ['lowerArmInnerRearward', 'lowerArmOuter', 'lowerArm'], ['tieRodInner', 'tieRodOuter', 'tieRod']] },
-    multilink: { label: 'Multilink', short: '5-link', slug: 'multilink', axles: ['rear'], axis: 'virtual',   // the engine also steers it (toe link on the rack); a front example is still to come
+    multilink: { label: 'Multilink', short: '5-link', slug: 'multilink', axles: ['front', 'rear'], axis: 'virtual',
       links: [['upperForwardLinkInner', 'upperForwardLinkOuter', 'upperForwardLink'], ['upperRearwardLinkInner', 'upperRearwardLinkOuter', 'upperRearwardLink'],
         ['lowerForwardLinkInner', 'lowerForwardLinkOuter', 'lowerForwardLink'], ['lowerRearwardLinkInner', 'lowerRearwardLinkOuter', 'lowerRearwardLink'], ['tieRodInner', 'tieRodOuter', 'tieRod']] },
     strutLinks: { label: 'Strut + links', short: 'Strut+L', slug: 'strut-lateral-links', axles: ['rear'], axis: 'none', strut: true,
@@ -778,6 +778,30 @@ window.SuspensionEngine = (function () {
       sweep: { bump: 90, droop: 80, rack: 70 },
       springs: defaultSprings(),
     };
+  }
+  /**
+   * Front-axle examples for types whose main example is a rear corner. Front multilink ("four-link"
+   * front, as on several large saloons): each wishbone of the double wishbone example split into two
+   * separate links with their own ball joints. The lower pair is a near-transverse link and a
+   * tension strut running forward; its lines cross about 30 mm outboard of the joints, so the
+   * virtual kingpin sits closer to the wheel than a single ball joint could. Tuned with Solve:
+   * zero bump steer (±50 mm), inner lock 36°, Ackermann ≈ 25 %, ≥ 5 mm room in the 15×7 ET35
+   * wheel at full travel and full lock. The damper passes between the two upper links.
+   */
+  const FRONT_EXAMPLES = {
+    multilink: {
+      upperForwardLinkInner: [96, 438, 416], upperForwardLinkOuter: [6, 621, 433],
+      upperRearwardLinkInner: [-111, 427, 397], upperRearwardLinkOuter: [-29, 625, 433],
+      lowerForwardLinkInner: [248, 330, 176], lowerForwardLinkOuter: [32, 675, 162],
+      lowerRearwardLinkInner: [-65, 286, 179], lowerRearwardLinkOuter: [1, 690, 161],
+      tieRodInner: [-117, 368, 219.6], tieRodOuter: [-125, 662, 217], wheelCentre: [0, 760, 300],
+      damperUpper: [-12, 575, 650], damperLower: [-12, 650, 225],
+    },
+  };
+  /** Example hardpoints of a type for an axle (a fresh copy). */
+  function examplePoints(type, axle) {
+    const src = (axle === 'front' && FRONT_EXAMPLES[type]) || exampleModel().points[type];
+    return JSON.parse(JSON.stringify(src));
   }
 
   // ---------- wheel and steering-axis angles ----------
@@ -1888,6 +1912,9 @@ window.SuspensionEngine = (function () {
       near('Multilink, links meeting in pairs: camber gain = −1/FVSA, FVSA 1850 mm (°/mm)', (up.camber - dn.camber) / 0.5, -DEG / 1850, 1e-5, ' °/mm');
       near('Multilink, links meeting in pairs: roll centre = 750 · 150 / 1850', at(ml, 0).rc, 750 * 150 / 1850, 0.01, ' mm');
       near('Multilink: virtual steering axis through both joints, KPI = atan(50/350)', at(ml, 0).kpi, Math.atan(50 / 350) * DEG, 1e-6, '°');
+      // On the front axle the same links steer the upright exactly as the double wishbone does:
+      // same constraints, so the same wheel angle for the same rack travel.
+      near('Front multilink, links meeting in pairs: toe at 30 mm rack = the double wishbone toe', at(ml, 0, 30).toe, at(conv, 0, 30).toe, 1e-6, '°');
       near('Virtual joint of two crossing lines: (0, 0, 0)–(2, 2, 0) and (2, 0, 0)–(0, 2, 0) meet at y = 1', virtualJoint([0, 0, 0], [2, 2, 0], [2, 0, 0], [0, 2, 0])[1], 1, 1e-12, ' mm');
     });
     safe('Strut with lateral links', () => {
@@ -1992,13 +2019,16 @@ window.SuspensionEngine = (function () {
       near('Lock & solve, only Y free: z stays 450', Uy[2], 450, 1e-9, ' mm');
     });
     safe('Examples', () => {
-      for (const type of Object.keys(TYPES)) {
-        const m = exampleModel(); m.type = type;
-        const front = type === 'doubleWishbone' || type === 'macpherson';   // the other examples are rear corners
-        m.axle = front ? 'front' : 'rear';
+      // Every example on the axle it is made for: double wishbone and MacPherson on the front, the
+      // other types on the rear, and the front multilink example.
+      const cases = Object.keys(TYPES).map((type) => [type, type === 'doubleWishbone' || type === 'macpherson' ? 'front' : 'rear']);
+      for (const type of Object.keys(FRONT_EXAMPLES)) cases.push([type, 'front']);
+      for (const [type, axle] of cases) {
+        const m = exampleModel(); m.type = type; m.axle = axle; m.points[type] = examplePoints(type, axle);
+        const front = axle === 'front';
         const mech = buildMechanism(m);
         const t = sweepTravel(mech, m), st = front ? sweepSteer(mech, m) : { failHigh: null, failLow: null, samples: [] };
-        out.push({ name: 'Example ' + TYPES[type].label.toLowerCase() + (front ? ' solves through full travel and rack' : ' (rear) solves through full travel'),
+        out.push({ name: 'Example ' + TYPES[type].label.toLowerCase() + (front ? (FRONT_EXAMPLES[type] ? ' (front)' : '') + ' solves through full travel and rack' : ' (rear) solves through full travel'),
           pass: t.failHigh === null && t.failLow === null && st.failHigh === null && st.failLow === null,
           detail: 'travel ' + t.samples.length + ' positions' + (front ? ', steering ' + st.samples.length + ' positions' : '') });
       }
@@ -2007,7 +2037,7 @@ window.SuspensionEngine = (function () {
   }
 
   return {
-    POINTS, TYPES, PART_NAMES, virtualJoint, trailingArmLayout, pointName, exampleModel, buildMechanism, solve, solveFrom, analyse, sweepTravel, sweepSteer, evaluate,
+    POINTS, TYPES, PART_NAMES, virtualJoint, trailingArmLayout, pointName, exampleModel, examplePoints, buildMechanism, solve, solveFrom, analyse, sweepTravel, sweepSteer, evaluate,
     rollAt, sweepRoll,
     TARGETS, designMetrics, targetMet, travelFeasible, createTargetSolver, steeringLayout, flipSteering,
     PACK_RADIUS, DEFAULT_CLEARANCE, wheelEnvelope, wheelClearance, packagingCheck, packagingAt, hardpointRows, hardpointsCsv, hardpointsFromCsv,
@@ -2162,8 +2192,7 @@ function cleanSet(o) {
 /** Older saved models have no locks or targets; the wheel centre starts locked. */
 function normalizeModel(m) {
   // Types added after the design was saved start from the example geometry.
-  const ex = E.exampleModel();
-  for (const t of Object.keys(E.POINTS)) if (!m.points[t]) m.points[t] = ex.points[t];
+  for (const t of Object.keys(E.POINTS)) if (!m.points[t]) m.points[t] = E.examplePoints(t, m.axle);
   if (!typeAllowed(m.type, m.axle)) m.axle = E.TYPES[m.type].axles[0];
   if (!m.locks || typeof m.locks !== 'object') m.locks = {};
   for (const t of Object.keys(E.POINTS)) {
@@ -2696,17 +2725,34 @@ function syncParams() {
 }
 
 // ---------------------------------------------------------------- top bar, transport, modes
+/**
+ * Some types have a separate example for each axle (multilink). When the type's points are still
+ * the untouched example of the other axle, load the example for this axle. Edited points are kept.
+ */
+function useAxleExample(m) {
+  const other = m.axle === 'front' ? 'rear' : 'front';
+  const here = E.examplePoints(m.type, m.axle), there = E.examplePoints(m.type, other);
+  const same = (a, b) => Object.keys(a).length === Object.keys(b).length && Object.keys(b).every((k) => a[k] && a[k].every((v, i) => Math.abs(v - b[k][i]) < 1e-9));
+  if (same(here, there) || !same(m.points[m.type], there)) return false;
+  m.points[m.type] = here;
+  return true;
+}
+const exampleToast = (m) => toast('Loaded the ' + m.axle + '-axle ' + E.TYPES[m.type].label.toLowerCase() + ' example (the other axle\'s example had not been changed). Undo brings it back.');
 for (const b of document.querySelectorAll('#typeSeg button')) b.addEventListener('click', () => {
   if (state.model.type === b.dataset.type) return;
   const t = b.dataset.type, toRear = !typeAllowed(t, state.model.axle);
-  commit(() => { state.model.type = t; if (toRear) state.model.axle = 'rear'; state.selected = null; state.hover = null; });
+  let swapped = false;
+  commit(() => { state.model.type = t; if (toRear) state.model.axle = 'rear'; swapped = useAxleExample(state.model); state.selected = null; state.hover = null; });
   buildPointTable(); buildChartOptions(); refresh();
   if (toRear) toast(E.TYPES[t].label + ' is a rear suspension here, so the axle was set to Rear.');
+  else if (swapped) exampleToast(state.model);
 });
 for (const b of document.querySelectorAll('#axleSeg button')) b.addEventListener('click', () => {
   if (state.model.axle === b.dataset.axle || b.disabled) return;
-  commit(() => { state.model.axle = b.dataset.axle; });
+  let swapped = false;
+  commit(() => { state.model.axle = b.dataset.axle; swapped = useAxleExample(state.model); });
   buildPointTable(); buildChartOptions(); refresh();
+  if (swapped) exampleToast(state.model);
 });
 for (const b of document.querySelectorAll('#modeSeg button')) b.addEventListener('click', () => {
   if (b.disabled) return;
@@ -3003,10 +3049,11 @@ function updateHint() {
     h.append(b, document.createTextNode(atRide ? ' · drag an arrow (1 mm steps) or type in the table · Esc to deselect' : ' · return to ride height to drag it'));
   } else if (state.proposal) {
     h.textContent = 'Amber = Solve proposal · Apply or Discard it under Design targets';
-  } else if (look === 'real' && state.model.type !== 'doubleWishbone') {
-    h.textContent = 'The realistic view is ready for double wishbone so far, so this type is shown as a diagram';
+  } else if (look === 'real' && !realActive()) {
+    h.textContent = 'The realistic view is ready for double wishbone and MacPherson so far, so this type is shown as a diagram';
   } else if (realActive()) {
-    h.textContent = 'Realistic view: lower arm on rubber bushings, upper arm on uniballs · the points show through, click one to edit it';
+    h.textContent = (state.model.type === 'macpherson' ? 'Realistic view: pressed lower arm on rubber bushings, strut clamped in the knuckle'
+      : 'Realistic view: lower arm on rubber bushings, upper arm on rod ends with a ball joint at the upright') + ' · the points show through, click one to edit it';
   } else {
     h.textContent = 'Click a point to edit it · drag to orbit · right-drag to pan · scroll to zoom';
   }
@@ -3686,7 +3733,7 @@ function startSolveAll() {
     if (!allRun.cur) {
       const type = allRun.queue.shift();
       if (!type) { finishSolveAll(false); return; }
-      const m = clone(state.model); m.type = type;
+      const m = clone(state.model); m.type = type; useAxleExample(m);
       const tg = targetsForType(type, targets), free = freeCoordsFor(m, type, tg);
       const col = { type, model: m, targets: tg, skipped: targets.filter((t) => !tg.includes(t)).map((t) => t.key) };
       allResult.cols.push(col);
@@ -4029,12 +4076,16 @@ class Corner {
 const left = new Corner(mat), right = new Corner(ghost), propCorner = new Corner(propMat), cmpCorner = new Corner(cmpMat);
 modelGroup.add(left.group, right.group, propCorner.group, cmpCorner.group);
 
-// ---------------------------------------------------------------- realistic view (double wishbone)
-// The same solved points, drawn as the parts look on a car: tubular arms, the lower arm on rubber
-// bushings and the upper arm on spherical bearings (uniballs), a cast upright with hub, brake disc
-// and caliper, a coilover and a tyre on a rim. Only the look changes; every number is the same.
+// ---------------------------------------------------------------- realistic view (double wishbone, MacPherson)
+// The same solved points, drawn as the parts look on a car. Double wishbone: tubular arms, the lower
+// arm on rubber bushings, the upper arm on rod ends (heim / rose joints) at the body, ball joints at
+// the upright, and a coilover. MacPherson: pressed-steel lower arm on rubber bushings, the strut
+// clamped in the knuckle, a coil spring and the top mount. Both get a cast upright with hub, brake
+// disc and caliper, and a tyre on a rim. Only the look changes; every number is the same.
+const REAL_TYPES = ['doubleWishbone', 'macpherson'];
 const CYL_SMOOTH = new THREE.CylinderGeometry(1, 1, 1, 28, 1);
 const CYL_TAPER = new THREE.CylinderGeometry(0.7, 1, 1, 24, 1);    // radius 1 at the start, 0.7 at the end
+const CYL_HEX = new THREE.CylinderGeometry(1, 1, 1, 6, 1);         // nuts
 const SPH_SMOOTH = new THREE.SphereGeometry(1, 28, 18);
 const BOX1 = new THREE.BoxGeometry(1, 1, 1);
 const TORUS = new THREE.TorusGeometry(1, 0.22, 10, 32);            // axis along Z
@@ -4068,10 +4119,10 @@ class RealCorner {
     o.geometry = geo; o.material = this.m[mat]; o.visible = true; o.userData.used = true;
     return o;
   }
-  /** Cylinder from a to b (tapered: radius r at a, 0.7 r at b). */
-  rod(name, a, b, r, mat, taper) { const o = this.mesh(name, taper ? CYL_TAPER : CYL_SMOOTH, mat); if (!placeBar(o, a, b, r)) o.visible = false; return o; }
+  /** Cylinder from a to b (shape true = tapered: radius r at a, 0.7 r at b; or a geometry such as CYL_HEX). */
+  rod(name, a, b, r, mat, shape) { const o = this.mesh(name, shape === true ? CYL_TAPER : shape || CYL_SMOOTH, mat); if (!placeBar(o, a, b, r)) o.visible = false; return o; }
   /** Cylinder of length len centred on c along the unit vector d. */
-  sleeve(name, c, d, len, r, mat) { return this.rod(name, V.sub(c, V.mul(d, len / 2)), V.add(c, V.mul(d, len / 2)), r, mat); }
+  sleeve(name, c, d, len, r, mat, shape) { return this.rod(name, V.sub(c, V.mul(d, len / 2)), V.add(c, V.mul(d, len / 2)), r, mat, shape); }
   ball(name, c, r, mat) { const o = this.mesh(name, SPH_SMOOTH, mat); o.quaternion.identity(); o.position.set(c[0], c[1], c[2]); o.scale.setScalar(r); return o; }
   ring(name, c, d, R, mat) { const o = this.mesh(name, TORUS, mat); o.position.set(c[0], c[1], c[2]); o.quaternion.setFromUnitVectors(_zAxis, _d.set(d[0], d[1], d[2])); o.scale.setScalar(R); return o; }
   /** Box centred on c; y along the unit vector `along`, z towards `towards` (made square to y). */
@@ -4095,43 +4146,68 @@ class RealCorner {
     this.sleeve(name + 'b', c, axis, 98, 7, 'steel');
     this.clevis(name, c, axis, 31, [0, 0, 1], 'bracket');
   }
-  /** Spherical bearing (uniball): housing in the arm, the polished ball, spacers and the bolt. */
-  uniball(name, c, axis, armMat, towards, bracketMat) {
-    this.sleeve(name + 'h', c, axis, 22, 21, armMat);
-    this.ball(name + 'b', c, 15, 'chrome');
-    for (const sg of [1, -1]) this.sleeve(name + 's' + sg, V.add(c, V.mul(axis, sg * 17)), axis, 12, 9, 'chrome');
-    this.sleeve(name + 'bolt', c, axis, 84, 6, 'steel');
-    this.clevis(name, c, axis, 24, towards, bracketMat);
+  /**
+   * Rod end (heim / rose joint) at a body pivot: the eye with its spherical bearing on the bolt,
+   * misalignment spacers, the neck, a jam nut and the threaded shank that screws into the arm tube.
+   * The shank points along the tube; the ball lets the bolt sit at an angle to the eye.
+   * Returns where the tube starts.
+   */
+  rodEnd(name, c, axis, towardsArm) {
+    const d = V.unit(towardsArm);
+    let e = V.sub(axis, V.mul(d, V.dot(axis, d)));
+    e = V.len(e) > 1e-6 ? V.unit(e) : axis;                                     // eye axis, square to the shank
+    this.sleeve(name + 'eye', c, e, 15, 19, 'steel');
+    this.ball(name + 'b', c, 12, 'chrome');
+    for (const sg of [1, -1]) this.sleeve(name + 's' + sg, V.add(c, V.mul(axis, sg * 14)), axis, 10, 8, 'chrome');
+    this.sleeve(name + 'bolt', c, axis, 76, 6, 'steel');
+    this.rod(name + 'neck', V.add(c, V.mul(d, 14)), V.add(c, V.mul(d, 32)), 9, 'steel');
+    this.rod(name + 'thr', V.add(c, V.mul(d, 32)), V.add(c, V.mul(d, 62)), 6.5, 'chrome');
+    this.sleeve(name + 'nut', V.add(c, V.mul(d, 40)), d, 8, 13, 'steel', CYL_HEX);
+    this.clevis(name, c, axis, 19, [0, 0, 1], 'bracket');
+    return V.add(c, V.mul(d, 54));
+  }
+  /** Ball joint: housing pressed into the arm, the stud pointing along `stud` into the upright, dust boot. */
+  ballJoint(name, c, stud, r, armMat) {
+    this.sleeve(name, V.sub(c, V.mul(stud, 6)), stud, 28, r, armMat);
+    this.ball(name + 'Boot', V.add(c, V.mul(stud, 14)), r - 8, 'rubber');
   }
   update(s, model, opts) {
     for (const o of this.meshes.values()) o.userData.used = false;
-    const on = !!s && model.type === 'doubleWishbone';
+    const on = !!s && REAL_TYPES.includes(model.type);
     this.group.visible = on;
     if (on) this.build(s, model, opts || {});
     for (const o of this.meshes.values()) if (!o.userData.used) o.visible = false;
   }
   build(s, model, opts) {
     const p = s.points, spin = s.spin, fwd = V.unit(V.cross(spin, [0, 0, 1])), up = V.cross(fwd, spin);
-    const L = p.lowerArmOuter, U = p.upperArmOuter, W = p.wheelCentre, kp = V.unit(V.sub(U, L));
+    const mac = model.type === 'macpherson';
+    // L = lower ball joint, U = top of the cast upright (upper ball joint, or the strut on a MacPherson).
+    const L = p.lowerArmOuter, U = mac ? p.strutLower : p.upperArmOuter, W = p.wheelCentre, kp = V.unit(V.sub(U, L));
     const env = E.wheelEnvelope(model), et = model.wheel.offset;
-    // Lower arm: two tubes from rubber bushings to the ball joint.
+    // Lower arm on rubber bushings: tubes (double wishbone) or pressed steel (MacPherson), ball joint at the upright.
     const aL = V.unit(V.sub(p.lowerArmInnerForward, p.lowerArmInnerRearward));
     for (const [k, c] of [['f', p.lowerArmInnerForward], ['r', p.lowerArmInnerRearward]]) {
       this.bushing('Lb' + k, c, aL, 'lower');
-      this.rod('Lt' + k, c, L, 11, 'lower');
+      if (mac) this.block('Lt' + k, V.lerp(c, L, 0.5), V.sub(L, c), [0, 0, 1], 46, V.dist(c, L), 16, 'lower');
+      else this.rod('Lt' + k, c, L, 11, 'lower');
     }
-    this.sleeve('Lbj', V.sub(L, V.mul(kp, 6)), kp, 28, 22, 'lower');            // ball-joint housing pressed into the arm
-    this.ball('LbjBoot', V.add(L, V.mul(kp, 14)), 14, 'rubber');               // dust boot
-    // Upper arm: two tubes, uniballs at both inner pivots and at the upright.
-    const aU = V.unit(V.sub(p.upperArmInnerForward, p.upperArmInnerRearward));
+    this.ballJoint('Lbj', L, kp, 22, 'lower');
     const hubIn = V.sub(W, V.mul(spin, 95)), hubOut = V.add(W, V.mul(spin, et - 34)), hubMid = V.lerp(hubIn, hubOut, 0.3);
-    for (const [k, c] of [['f', p.upperArmInnerForward], ['r', p.upperArmInnerRearward]]) {
-      this.uniball('Ub' + k, c, aU, 'upper', [0, 0, 1], 'bracket');
-      this.rod('Ut' + k, c, U, 9, 'upper');
+    if (mac) this.strut(s, model, hubMid, fwd);
+    else {
+      // Upper arm: two tubes on rod ends at the body, a ball joint at the upright (stud pointing down).
+      const aU = V.unit(V.sub(p.upperArmInnerForward, p.upperArmInnerRearward));
+      for (const [k, c] of [['f', p.upperArmInnerForward], ['r', p.upperArmInnerRearward]]) {
+        const start = this.rodEnd('Ub' + k, c, aU, V.sub(U, c));
+        this.sleeve('Ubung' + k, V.add(start, V.mul(V.unit(V.sub(U, c)), 8)), V.unit(V.sub(U, c)), 18, 11, 'upper');   // threaded insert welded in the tube
+        this.rod('Ut' + k, start, U, 9, 'upper');
+      }
+      this.ballJoint('Ubj', U, V.mul(kp, -1), 20, 'upper');
+      this.sleeve('kpTop', V.sub(U, V.mul(kp, 30)), kp, 22, 19, 'upright');          // boss for the upper ball-joint stud
+      this.coilover(s, p, L, aL);
     }
-    this.uniball('Uo', U, aU, 'upper', V.sub(hubMid, U), 'upright');
-    // Upright: kingpin body, arms to the hub, steering arm.
-    this.rod('kp', V.add(L, V.mul(kp, 16)), V.sub(U, V.mul(kp, 30)), 22, 'upright', true);
+    // Upright (knuckle): body along the steering axis, arms to the hub, steering arm.
+    this.rod('kp', V.add(L, V.mul(kp, 16)), V.sub(U, V.mul(kp, 30)), 22, 'upright', true);   // MacPherson: up to the strut clamp
     this.rod('hub', hubIn, hubOut, 46, 'upright');
     this.rod('toHubLo', hubMid, V.add(L, V.mul(kp, 20)), 24, 'upright', true);
     this.rod('toHubUp', hubMid, V.sub(U, V.mul(kp, 32)), 20, 'upright', true);
@@ -4159,7 +4235,18 @@ class RealCorner {
       for (let i = 0; i < 6; i++) this.ring('boot' + i, V.add(ti, V.mul(dT, -12 - i * 11)), dT, 21 - i * 0.8, 'rubber');
       this.rod('rack', [ti[0], ti[1] - 75, ti[2]], [ti[0], Math.max(0, ti[1] - 260), ti[2]], 22, 'bracket');
     } else this.clevis('tieInC', ti, aL, 20, [0, 0, 1], 'bracket');
-    // Coilover: damper body, chrome shaft, eye bushing on the lower arm, top mount, spring between its perches.
+    this.wheel(model, env, W, spin, fwd, up, et, opts);
+  }
+  /** Coil spring between two perches on the axis ax (rebuilt only when its length or size changes). */
+  coil(perchLo, perchHi, ax, radius, wire, turns) {
+    const sLen = Math.max(20, V.dist(perchLo, perchHi) - 6), key = [Math.round(sLen), radius, wire, turns].join('/');
+    if (key !== this.springKey) { this.spring.geometry.dispose(); this.spring.geometry = new THREE.TubeGeometry(new Helix(radius, sLen, turns), 230, wire, 10, false); this.springKey = key; }
+    const e1 = V.unit(V.cross(ax, Math.abs(ax[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = V.cross(e1, ax), s0 = V.add(perchLo, V.mul(ax, 3));
+    this.spring.matrix.makeBasis(new THREE.Vector3(...e1), new THREE.Vector3(...ax), new THREE.Vector3(...e2)).setPosition(s0[0], s0[1], s0[2]);
+    this.spring.matrixWorldNeedsUpdate = true;
+  }
+  /** Double wishbone coilover: damper body, chrome shaft, eye bushing on the lower arm, top mount, spring between its perches. */
+  coilover(s, p, L, aL) {
     const dU = s.damper[0], dL = s.damper[1], dAx = V.unit(V.sub(dU, dL)), dLen = V.dist(dU, dL);
     const bodyTop = V.add(dL, V.mul(dAx, dLen * 0.56));
     this.rod('dBody', V.add(dL, V.mul(dAx, 18)), bodyTop, 23, 'damper');
@@ -4172,11 +4259,41 @@ class RealCorner {
     const perchLo = V.add(dL, V.mul(dAx, dLen * 0.3)), perchHi = V.sub(dU, V.mul(dAx, 22));
     this.sleeve('perchLo', perchLo, dAx, 6, 54, 'steel');
     this.sleeve('perchHi', perchHi, dAx, 6, 54, 'steel');
-    const sLen = Math.max(20, V.dist(perchLo, perchHi) - 6), key = Math.round(sLen);
-    if (key !== this.springKey) { this.spring.geometry.dispose(); this.spring.geometry = new THREE.TubeGeometry(new Helix(46, sLen, 6.5), 230, 6.5, 10, false); this.springKey = key; }
-    const e1 = V.unit(V.cross(dAx, Math.abs(dAx[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = V.cross(e1, dAx), s0 = V.add(perchLo, V.mul(dAx, 3));
-    this.spring.matrix.makeBasis(new THREE.Vector3(...e1), new THREE.Vector3(...dAx), new THREE.Vector3(...e2)).setPosition(s0[0], s0[1], s0[2]);
-    this.spring.matrixWorldNeedsUpdate = true;
+    this.coil(perchLo, perchHi, dAx, 46, 6.5, 6.5);
+  }
+  /**
+   * MacPherson strut. The damper body is fixed to the knuckle (split clamp with two bolts round
+   * its lower end), the piston rod slides up to the top mount, and the spring sits between a perch
+   * on the body and the top mount, so it shortens with bump. The top mount pivots; the steering
+   * axis runs from it to the lower ball joint.
+   */
+  strut(s, model, hubMid, fwd) {
+    const T = s.damper[0], S = s.damper[1], u = V.unit(V.sub(T, S));
+    const P0 = model.points.macpherson, bodyLen = 0.6 * V.dist(P0.strutTopMount, P0.strutLower);   // the body is rigid with the knuckle
+    const bodyTop = V.add(S, V.mul(u, bodyLen));
+    this.rod('sBody', V.sub(S, V.mul(u, 40)), bodyTop, 25, 'damper');
+    this.sleeve('sCap', bodyTop, u, 10, 21, 'steel');
+    this.rod('sRod', bodyTop, V.sub(T, V.mul(u, 6)), 10, 'chrome');
+    // split clamp on the knuckle: sleeve round the body, two ears towards the car and their bolts
+    this.sleeve('sClamp', V.add(S, V.mul(u, 10)), u, 92, 33, 'upright');
+    let g = V.sub(V.sub(hubMid, S), V.mul(u, V.dot(V.sub(hubMid, S), u)));
+    g = V.mul(V.len(g) > 1e-6 ? V.unit(g) : fwd, -1);                              // away from the hub
+    const bx = V.unit(V.cross(u, g));
+    this.block('sEar', V.add(V.add(S, V.mul(u, 10)), V.mul(g, 38)), u, g, 26, 88, 24, 'upright');
+    for (const k of [-1, 1]) this.sleeve('sBolt' + k, V.add(V.add(S, V.mul(u, 10 + k * 28)), V.mul(g, 42)), bx, 52, 7, 'steel');
+    // spring: threaded perch on the body up to the seat under the top mount; bump stop and boot on the rod
+    const perchLo = V.add(S, V.mul(u, bodyLen * 0.72)), perchHi = V.sub(T, V.mul(u, 26));
+    this.sleeve('sPerchLo', perchLo, u, 8, 52, 'steel');
+    this.sleeve('sPerchHi', perchHi, u, 7, 54, 'steel');
+    this.coil(perchLo, perchHi, u, 42, 7, 5);
+    this.sleeve('sBumpStop', V.sub(perchHi, V.mul(u, 18)), u, 28, 17, 'rubber');
+    // top mount: rubber, the plate on the strut tower and the nut on the rod
+    this.sleeve('sTop', T, u, 18, 38, 'rubber');
+    this.sleeve('sTopPlate', V.add(T, V.mul(u, 12)), u, 5, 60, 'bracket');
+    this.sleeve('sTopNut', V.add(T, V.mul(u, 20)), u, 10, 10, 'steel', CYL_HEX);
+  }
+  /** Tyre and rim turned about the spin axis; spokes and the rim centre only on a solid wheel. */
+  wheel(model, env, W, spin, fwd, up, et, opts) {
     // Wheel: tyre and rim turned about the spin axis, and five spokes out to the barrel.
     const wkey = [model.wheel.radius, model.wheel.width, model.wheel.rimDiameter, model.wheel.rimWidth, model.wheel.rimWall].join('/');
     if (wkey !== this.wheelKey) {
@@ -4212,7 +4329,7 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0x2a2e33, 1.6));
 const LOOK_KEY = 'suspension-kinematics-prototype/look';
 let look = 'diagram', solidWheel = false;
 try { look = localStorage.getItem(LOOK_KEY) === 'real' ? 'real' : 'diagram'; } catch (e) { /* storage unavailable */ }
-const realActive = () => look === 'real' && state.model.type === 'doubleWishbone';
+const realActive = () => look === 'real' && REAL_TYPES.includes(state.model.type);
 /** See-through wheel (default) so the suspension inside it stays visible, or solid. */
 function applyWheelLook() {
   for (const k of ['tyre', 'rim']) { const m = realMats[k]; m.transparent = !solidWheel; m.opacity = solidWheel ? 1 : k === 'tyre' ? 0.3 : 0.38; m.depthWrite = solidWheel; m.needsUpdate = true; }

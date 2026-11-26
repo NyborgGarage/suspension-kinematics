@@ -16,12 +16,15 @@ from targets ("lock & solve").
 Open [prototype/suspension-prototype.html](prototype/suspension-prototype.html) in
 a browser (double-click it). It needs an internet connection to load three.js.
 
-- Double wishbone or MacPherson on either axle. On the rear axle also multilink (five links,
-  virtual steering axis), strut with two lateral links and a trailing rod, and trailing arm
-  (pure trailing arm, or semi-trailing when the pivot axis is swept).
-- Diagram or Realistic drawing (button above the 3D view). Realistic shows a double wishbone as
-  the parts look on a car: lower arm on rubber bushings, upper arm on uniballs, cast upright with
-  hub, brake disc and caliper, coilover and a see-through (or solid) wheel. The numbers are the same.
+- Double wishbone, MacPherson and multilink (five links, virtual steering axis) on either axle,
+  with a separate front and rear multilink example. On the rear axle also strut with two lateral
+  links and a trailing rod, and trailing arm (pure trailing arm, or semi-trailing when the pivot
+  axis is swept).
+- Diagram or Realistic drawing (button above the 3D view). Realistic shows the parts as they look
+  on a car. Double wishbone: lower arm on rubber bushings, upper arm on rod ends (heim / rose
+  joints) with a ball joint at the upright, coilover. MacPherson: pressed lower arm on rubber
+  bushings, strut clamped in the knuckle, spring and top mount. Both have a cast upright with hub,
+  brake disc and caliper and a see-through (or solid) wheel. The numbers are the same.
 - Isometric, front and side views. Click a point, drag the arrows, or type values.
 - Wheel-travel, body-roll and rack sliders; Play animates bump and droop.
 - Charts in heave, roll (camber to ground, roll steer, roll-centre height and sideways
@@ -49,7 +52,7 @@ a browser (double-click it). It needs an internet connection to load three.js.
 - Whole car in roll: with a front-axle and a rear-axle variant, the app gives the roll axis
   height under the CG, the roll angle per g, and the front share of roll stiffness and of
   lateral load transfer.
-- 83 engine checks run on load and compare the solver with values worked out by hand.
+- 85 engine checks run on load and compare the solver with values worked out by hand.
 
 - Room inside the wheel: rim width, offset (ET) and rim wall define the wheel. Ball joints,
   arms, tie rods and the strut are checked against rim, tyre and hub face at full bump and
